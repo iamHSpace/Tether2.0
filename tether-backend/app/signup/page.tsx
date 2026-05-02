@@ -6,21 +6,34 @@ import { routes } from "@/lib/config";
 
 type LoadingState = "idle" | "email" | "google";
 
-export default function LoginPage() {
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState<LoadingState>("idle");
-  const [error, setError]       = useState<string | null>(null);
+export default function SignupPage() {
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
+  const [confirm, setConfirm]         = useState("");
+  const [loading, setLoading]         = useState<LoadingState>("idle");
+  const [error, setError]             = useState<string | null>(null);
+  const [success, setSuccess]         = useState(false);
 
-  // ── Email / Password sign-in ──────────────────────────────────────────────
-  async function handleEmailLogin(e: React.FormEvent) {
+  // ── Email / Password sign-up ──────────────────────────────────────────────
+  async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     if (loading !== "idle") return;
 
-    setLoading("email");
     setError(null);
 
-    const { error } = await supabaseClient.auth.signInWithPassword({
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading("email");
+
+    const { data, error } = await supabaseClient.auth.signUp({
       email: email.trim(),
       password,
     });
@@ -31,8 +44,15 @@ export default function LoginPage() {
       return;
     }
 
-    // Session cookies are written by createBrowserClient — navigate to dashboard.
-    window.location.href = routes.home;
+    // If email confirmation is disabled (local dev default), the user is
+    // immediately signed in and a session is returned — redirect to dashboard.
+    // If confirmation is required, data.session is null — show a message.
+    if (data.session) {
+      window.location.href = routes.home;
+    } else {
+      setSuccess(true);
+      setLoading("idle");
+    }
   }
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
@@ -81,20 +101,42 @@ export default function LoginPage() {
 
   const busy = loading !== "idle";
 
+  // ── Confirmation state ────────────────────────────────────────────────────
+  if (success) {
+    return (
+      <main style={s.page}>
+        <div style={s.card}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>✉️</div>
+            <h2 style={{ margin: "0 0 0.5rem", color: "#0f172a" }}>Check your email</h2>
+            <p style={{ color: "#64748b", fontSize: "0.9rem", lineHeight: 1.6, margin: 0 }}>
+              We sent a confirmation link to <strong>{email}</strong>. Click it to activate your
+              account, then{" "}
+              <a href={routes.login} style={s.link}>
+                sign in
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={s.page}>
       <div style={s.card}>
         {/* Logo / title */}
         <div style={s.header}>
           <h1 style={s.title}>Tether</h1>
-          <p style={s.subtitle}>Sign in to your account</p>
+          <p style={s.subtitle}>Create your account</p>
         </div>
 
         {/* Error banner */}
         {error && <div style={s.errorBanner}>{error}</div>}
 
         {/* Email / password form */}
-        <form onSubmit={handleEmailLogin} style={s.form}>
+        <form onSubmit={handleEmailSignup} style={s.form}>
           <div style={s.field}>
             <label style={s.label} htmlFor="email">Email address</label>
             <input
@@ -115,14 +157,39 @@ export default function LoginPage() {
             <input
               id="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               required
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={busy}
               style={s.input}
+              placeholder="Min. 6 characters"
+            />
+          </div>
+
+          <div style={s.field}>
+            <label style={s.label} htmlFor="confirm">Confirm password</label>
+            <input
+              id="confirm"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              disabled={busy}
+              style={{
+                ...s.input,
+                borderColor:
+                  confirm && confirm !== password ? "#fc8181" : undefined,
+              }}
               placeholder="••••••••"
             />
+            {confirm && confirm !== password && (
+              <span style={{ fontSize: "0.78rem", color: "#e53e3e", marginTop: 2 }}>
+                Passwords don&apos;t match
+              </span>
+            )}
           </div>
 
           <button
@@ -130,7 +197,7 @@ export default function LoginPage() {
             disabled={busy}
             style={{ ...s.btn, ...s.primaryBtn, ...(busy ? s.btnDisabled : {}) }}
           >
-            {loading === "email" ? "Signing in…" : "Sign in"}
+            {loading === "email" ? "Creating account…" : "Create account"}
           </button>
         </form>
 
@@ -147,7 +214,6 @@ export default function LoginPage() {
           disabled={busy}
           style={{ ...s.btn, ...s.googleBtn, ...(busy ? s.btnDisabled : {}) }}
         >
-          {/* Google "G" icon */}
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
             <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
             <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/>
@@ -157,10 +223,10 @@ export default function LoginPage() {
           {loading === "google" ? "Opening Google…" : "Continue with Google"}
         </button>
 
-        {/* Sign-up link */}
+        {/* Sign-in link */}
         <p style={s.footerText}>
-          Don&apos;t have an account?{" "}
-          <a href={routes.signup} style={s.link}>Create one</a>
+          Already have an account?{" "}
+          <a href={routes.login} style={s.link}>Sign in</a>
         </p>
       </div>
     </main>

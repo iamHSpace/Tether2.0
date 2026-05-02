@@ -22,11 +22,14 @@ const APP_URL =
 export const routes = {
   home:              `${APP_URL}/`,
   login:             `${APP_URL}/login`,
+  signup:            `${APP_URL}/signup`,
   authCallback:      `${APP_URL}/api/auth/callback`,
   logout:            `${APP_URL}/api/auth/logout`,
   youtubeOAuth:      `${APP_URL}/api/oauth/youtube`,
   youtubeCallback:   `${APP_URL}/api/oauth/youtube/callback`,
   youtubeStats:      `${APP_URL}/api/youtube/stats`,
+  docs:              `${APP_URL}/docs`,
+  docsSpec:          `${APP_URL}/api/docs`,
 } as const;
 
 // ─── Platform identifiers ─────────────────────────────────────────────────────

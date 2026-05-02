@@ -49,9 +49,12 @@ export default async function Home({
             {user.email}
           </p>
         </div>
-        <form action={routes.logout} method="POST">
-          <button type="submit" style={styles.dangerBtn}>Sign out</button>
-        </form>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <a href={routes.docs} style={styles.docsBtn}>API Docs</a>
+          <form action={routes.logout} method="POST">
+            <button type="submit" style={styles.dangerBtn}>Sign out</button>
+          </form>
+        </div>
       </div>
 
       <hr style={{ margin: "1.5rem 0", borderColor: "#eee" }} />
@@ -136,6 +139,16 @@ const styles = {
     borderRadius: 6,
     textDecoration: "none",
     fontSize: "0.9rem",
+  } as React.CSSProperties,
+
+  docsBtn: {
+    padding: "0.45rem 1rem",
+    background: "transparent",
+    color: "#3182ce",
+    border: "1px solid #bee3f8",
+    borderRadius: 4,
+    textDecoration: "none",
+    fontSize: "0.85rem",
   } as React.CSSProperties,
 
   dangerBtn: {
