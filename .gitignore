@@ -1,0 +1,76 @@
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Editor / IDE ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Environment & secrets (NEVER commit these) ───────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# ─── Node ─────────────────────────────────────────────────────────────────────
+node_modules/
+.npm/
+.yarn/
+.pnp.*
+
+# ─── Next.js ──────────────────────────────────────────────────────────────────
+.next/
+out/
+build/
+.vercel/
+
+# ─── Supabase local ───────────────────────────────────────────────────────────
+.supabase/
+supabase/.temp/
+supabase/.branches/
+
+# ─── TypeScript ───────────────────────────────────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ─── Python (if any tooling scripts) ─────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+dist/
+*.egg-info/
+
+# ─── Misc build / dist ────────────────────────────────────────────────────────
+dist/
+coverage/
+.cache/
+tmp/
+temp/
