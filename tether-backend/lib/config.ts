@@ -9,13 +9,16 @@
  *    (local → staging → production) requires changing exactly one env var.
  */
 
-// ─── Base URL ─────────────────────────────────────────────────────────────────
-// Set NEXT_PUBLIC_APP_URL in .env.local.
-// Fallback is only for type safety — the app will warn loudly at runtime if
-// the env var is missing (see the check at the bottom of this file).
+// ─── Base URLs ────────────────────────────────────────────────────────────────
+// APP_URL    — the backend itself (used for self-referencing API paths)
+// FRONTEND_URL — the separately deployed frontend (used for post-auth redirects)
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:3000";
+
+/** The frontend origin. After OAuth flows the browser is redirected here. */
+export const FRONTEND_URL =
+  process.env.FRONTEND_URL ?? "http://127.0.0.1:3001";
 
 // ─── App routes ───────────────────────────────────────────────────────────────
 
@@ -71,13 +74,19 @@ export const encryption = {
 // Warn in development if NEXT_PUBLIC_APP_URL is not explicitly set, so the
 // fallback value doesn't silently slip into a staging/production build.
 
-if (
-  process.env.NODE_ENV === "development" &&
-  !process.env.NEXT_PUBLIC_APP_URL
-) {
-  console.warn(
-    "[config] NEXT_PUBLIC_APP_URL is not set — " +
-    `falling back to "${APP_URL}". ` +
-    "Add it to .env.local to silence this warning."
-  );
+if (process.env.NODE_ENV === "development") {
+  if (!process.env.NEXT_PUBLIC_APP_URL) {
+    console.warn(
+      "[config] NEXT_PUBLIC_APP_URL is not set — " +
+      `falling back to "${APP_URL}". ` +
+      "Add it to .env.local to silence this warning."
+    );
+  }
+  if (!process.env.FRONTEND_URL) {
+    console.warn(
+      "[config] FRONTEND_URL is not set — " +
+      `falling back to "${FRONTEND_URL}". ` +
+      "Add it to .env.local to silence this warning."
+    );
+  }
 }

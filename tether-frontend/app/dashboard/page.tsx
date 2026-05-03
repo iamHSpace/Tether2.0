@@ -11,7 +11,7 @@ import {
   IconCopy, IconCheck, IconBell
 } from "@/components/ui/Icons";
 
-interface Profile { username: string | null; email: string; }
+interface DashboardProfile { username: string | null; email: string; }
 
 // ── Sparkline (pure SVG, no recharts) ────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function StatCard({ label, value, Icon, color, trend }: {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [profile, setProfile]   = useState<Profile | null>(null);
+  const [profile, setProfile]   = useState<DashboardProfile | null>(null);
   const [ytData, setYtData]     = useState<YouTubeStatsResponse | null>(null);
   const [ytError, setYtError]   = useState<string | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -72,12 +72,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
+      // Verify there is an active session
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/login"; return; }
 
-      const { data: prof } = await supabase
-        .from("profiles").select("username").eq("id", user.id).single();
-      setProfile({ username: prof?.username ?? null, email: user.email ?? "" });
+      try {
+        // Load profile via backend API (no direct DB call)
+        const { profile: prof, email } = await api.profile.get();
+        setProfile({ username: prof.username, email: email ?? user.email ?? "" });
+      } catch {
+        setProfile({ username: null, email: user.email ?? "" });
+      }
 
       try { setYtData(await api.youtube.stats()); }
       catch (err) { setYtError(err instanceof Error ? err.message : String(err)); }
@@ -92,8 +97,7 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
-  const viewsData  = ytData?.videos.map(v => v.views) ?? [];
+  const viewsData = ytData?.videos.map(v => v.views) ?? [];
   const likesData  = ytData?.videos.map(v => v.likes) ?? [];
 
   return (
@@ -140,10 +144,11 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-              <a href={`${backendUrl}/api/oauth/youtube`}
+              <button
+                onClick={() => api.youtube.connect()}
                 className="btn-primary text-sm flex items-center gap-2 shrink-0">
                 <IconYoutube size={15} className="text-white" /> Connect YouTube
-              </a>
+              </button>
             </div>
           )}
 
@@ -178,10 +183,11 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <a href={`${backendUrl}/api/oauth/youtube`}
+                  <button
+                    onClick={() => api.youtube.connect()}
                     className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">
                     <IconRefresh size={12} /> Reconnect
-                  </a>
+                  </button>
                   <a href={`https://youtube.com/channel/${ytData.channel.id}`}
                     target="_blank" rel="noopener noreferrer"
                     className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3">

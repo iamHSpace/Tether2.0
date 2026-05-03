@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { NextRequest, NextResponse } from "next/server";
+import { getUserFromBearer } from "@/lib/supabaseServer";
 import { supabase as adminClient } from "@/lib/supabase";
 import { refreshAccessToken, getChannelStats, getRecentVideos } from "@/lib/youtube";
 import { encrypt, decrypt } from "@/lib/encryption";
@@ -18,13 +18,9 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh when < 5 min remaining
  * 4. Fetch channel stats + recent videos from YouTube Data API v3
  * 5. Return structured JSON
  */
-export async function GET() {
-  // 1. Verify session
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export async function GET(req: NextRequest) {
+  // 1. Verify Bearer token
+  const user = await getUserFromBearer(req.headers.get("Authorization"));
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -87,4 +83,9 @@ export async function GET() {
     console.error("[youtube/stats] error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
 }

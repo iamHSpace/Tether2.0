@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 
 // ── Step data ────────────────────────────────────────────────────────────────
 
@@ -56,16 +57,16 @@ export default function OnboardingPage() {
   async function save() {
     setSaving(true); setError(null);
     try {
+      // Get the user's email as a fallback username
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      await supabase.from("profiles").upsert({
-        id: user.id,
-        username: username.trim() || user.email?.split("@")[0],
-        creator_stage:   answers[0],
-        aspiration:      answers[1],
-        platform_reason: answers[2],
-        onboarding_done: true,
+      // Save profile via backend API — no direct DB call
+      await api.profile.update({
+        username:        username.trim() || user.email?.split("@")[0] || null,
+        creator_stage:   answers[0] ?? null,
+        aspiration:      answers[1] ?? null,
+        platform_reason: answers[2] ?? null,
       });
 
       window.location.href = "/dashboard";

@@ -20,7 +20,9 @@ export async function GET(req: Request) {
   const error = url.searchParams.get("error");
   const errorDesc = url.searchParams.get("error_description");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:3001";
+  // Always derive the base URL from the incoming request so the post-auth
+  // redirect goes back to the same origin that the browser is actually on.
+  const appUrl = `${url.protocol}//${url.host}`;
 
   if (error) {
     return NextResponse.redirect(

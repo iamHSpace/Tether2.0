@@ -32,16 +32,25 @@ CREATE TRIGGER platform_tokens_updated_at
   BEFORE UPDATE ON platform_tokens
   FOR EACH ROW EXECUTE FUNCTION update_platform_tokens_updated_at();
 
--- Row Level Security — users can only see and modify their own rows.
--- API routes use the service-role client (bypasses RLS) so tokens can be
--- read server-side to make API calls. RLS is a safety net for any direct
--- client access.
+-- ─── Row Level Security ───────────────────────────────────────────────────────
+-- The backend always uses the service-role key (bypasses RLS) to read/write
+-- tokens server-side. RLS governs what any client (anon or authenticated) can
+-- access when calling the PostgREST API directly.
+--
+-- SELECT is intentionally public because:
+--   • The public profile page (/[username]) reads platform_username & metadata
+--     to show which platforms a creator has connected — no secrets are exposed.
+--   • access_token and refresh_token are AES-256-GCM encrypted server-side;
+--     even if a client reads these columns the values are useless ciphertext.
+-- Write operations are strictly user-scoped (users can only modify their own).
 ALTER TABLE platform_tokens ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own tokens"
+-- Anyone can read platform connection info (powers public creator profiles)
+CREATE POLICY "Platform info is publicly viewable"
   ON platform_tokens FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (true);
 
+-- Only the owner may insert / update / delete their own tokens
 CREATE POLICY "Users can insert their own tokens"
   ON platform_tokens FOR INSERT
   WITH CHECK (auth.uid() = user_id);

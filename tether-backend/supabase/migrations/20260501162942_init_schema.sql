@@ -1,47 +1,64 @@
-create extension if not exists "pgcrypto";
+-- ─── Extensions ───────────────────────────────────────────────────────────────
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-create table users (
-  id uuid primary key default gen_random_uuid(),
-  email text unique,
-  created_at timestamp default now()
+-- ─── profiles ─────────────────────────────────────────────────────────────────
+-- One row per Supabase auth user.
+-- Created during the onboarding wizard, updated from the settings page.
+-- Public read access is intentional — creators share this page with brands.
+
+CREATE TABLE public.profiles (
+  -- Same UUID as auth.users.id so client code can do .eq("id", user.id)
+  id              UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  -- Unique handle used in the public profile URL: /<username>
+  username        TEXT        UNIQUE,
+
+  -- Display info
+  full_name       TEXT,
+  bio             TEXT,
+  website         TEXT,
+  avatar_url      TEXT,
+
+  -- Onboarding answers (stored for personalisation / analytics)
+  creator_stage   TEXT,    -- e.g. "just_starting" | "growing" | "established"
+  aspiration      TEXT,    -- creator's stated goal
+  platform_reason TEXT,    -- why they joined Tether
+
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-create table profiles (
-  user_id uuid references users(id),
-  name text,
-  bio text,
-  milestone text,
-  north_star text,
-  utility text,
-  primary key (user_id)
-);
+-- Keep updated_at current
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
 
-create table platform_connections (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid,
-  platform text,
-  access_token text,
-  refresh_token text,
-  expires_at timestamp,
-  created_at timestamp default now()
-);
+CREATE TRIGGER profiles_updated_at
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
-create table raw_api_logs (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid,
-  platform text,
-  endpoint text,
-  response jsonb,
-  fetched_at timestamp default now()
-);
+-- ─── Row Level Security — profiles ───────────────────────────────────────────
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-create table creator_metrics_daily (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid,
-  date date,
-  platform text,
-  followers int,
-  reach int,
-  impressions int,
-  engagement int
-);
+-- Anyone (including unauthenticated visitors) can read any profile.
+-- This powers the public /[username] page.
+CREATE POLICY "Public profiles are viewable by everyone"
+  ON public.profiles FOR SELECT
+  USING (true);
+
+-- Users can only write their own row.
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can delete their own profile"
+  ON public.profiles FOR DELETE
+  USING (auth.uid() = id);

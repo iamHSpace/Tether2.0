@@ -11,11 +11,64 @@
  *   5. getRecentVideos()         → most-recent uploads with stats
  */
 
+import crypto from "crypto";
 import { youtube as cfg, routes } from "@/lib/config";
+
+// ─── Signed OAuth state ───────────────────────────────────────────────────────
+// Since the YouTube callback hits the backend directly (no Supabase session
+// cookie present), we embed the user's ID in a short-lived HMAC-signed state
+// parameter so the callback can identify the user without a session.
+
+const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Creates a base64url-encoded, HMAC-SHA256 signed state blob.
+ * Embed this as the `state` query param in the Google OAuth redirect URL.
+ */
+export function createSignedState(userId: string): string {
+  const secret = process.env.ENCRYPTION_SECRET!;
+  const ts     = Date.now().toString();
+  const sig    = crypto
+    .createHmac("sha256", secret)
+    .update(`${userId}:${ts}`)
+    .digest("hex");
+  return Buffer.from(JSON.stringify({ userId, ts, sig })).toString("base64url");
+}
+
+/**
+ * Verifies the signed state and returns the userId, or null if invalid/expired.
+ */
+export function verifySignedState(state: string): string | null {
+  try {
+    const secret = process.env.ENCRYPTION_SECRET!;
+    const parsed = JSON.parse(Buffer.from(state, "base64url").toString());
+    const { userId, ts, sig } = parsed as Record<string, string>;
+    if (!userId || !ts || !sig) return null;
+
+    // Check age
+    if (Date.now() - parseInt(ts, 10) > STATE_MAX_AGE_MS) return null;
+
+    // Timing-safe signature check
+    const expected    = crypto.createHmac("sha256", secret).update(`${userId}:${ts}`).digest("hex");
+    const sigBuf      = Buffer.from(sig, "hex");
+    const expectedBuf = Buffer.from(expected, "hex");
+    if (sigBuf.length !== expectedBuf.length) return null;
+    if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) return null;
+
+    return userId;
+  } catch {
+    return null;
+  }
+}
 
 // ─── OAuth ────────────────────────────────────────────────────────────────────
 
-export function getAuthUrl(): string {
+/**
+ * Builds the Google OAuth consent-screen URL.
+ * Pass a signed state (from createSignedState) so the callback can recover
+ * the user identity without relying on a session cookie.
+ */
+export function getAuthUrl(state: string): string {
   // YOUTUBE_REDIRECT_URI in .env.local overrides the default from config.
   // Useful when tunnelling (e.g. ngrok) without changing config.ts.
   const redirectUri =
@@ -28,6 +81,7 @@ export function getAuthUrl(): string {
     scope:         cfg.scopes,
     access_type:   "offline",  // request a refresh token
     prompt:        "consent",  // always show consent so we always receive refresh_token
+    state,
   });
 
   return `${cfg.authUrl}?${params.toString()}`;

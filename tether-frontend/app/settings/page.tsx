@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert } from "@/components/ui/Icons";
 
-interface Profile {
+interface SettingsProfile {
   username: string;
   full_name: string;
   bio: string;
@@ -25,7 +26,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 
 export default function SettingsPage() {
   const [tab, setTab]         = useState<Tab>("profile");
-  const [profile, setProfile] = useState<Profile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "" });
+  const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -33,23 +34,24 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function load() {
+      // Guard: ensure session exists
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/login"; return; }
 
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("username, full_name, bio, website, avatar_url")
-        .eq("id", user.id)
-        .single();
-
-      setProfile({
-        username:   prof?.username    ?? "",
-        full_name:  prof?.full_name   ?? "",
-        bio:        prof?.bio         ?? "",
-        website:    prof?.website     ?? "",
-        avatar_url: prof?.avatar_url  ?? "",
-        email:      user.email        ?? "",
-      });
+      try {
+        // Load profile via backend API — no direct DB call
+        const { profile: prof, email } = await api.profile.get();
+        setProfile({
+          username:   prof.username   ?? "",
+          full_name:  prof.full_name  ?? "",
+          bio:        prof.bio        ?? "",
+          website:    prof.website    ?? "",
+          avatar_url: prof.avatar_url ?? "",
+          email:      email ?? user.email ?? "",
+        });
+      } catch {
+        setProfile(p => ({ ...p, email: user.email ?? "" }));
+      }
       setLoading(false);
     }
     load();
@@ -59,15 +61,12 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      await supabase.from("profiles").upsert({
-        id:        user.id,
-        username:  profile.username.trim(),
-        full_name: profile.full_name.trim(),
-        bio:       profile.bio.trim(),
-        website:   profile.website.trim(),
+      // Save via backend API — no direct DB call
+      await api.profile.update({
+        username:  profile.username.trim() || null,
+        full_name: profile.full_name.trim() || null,
+        bio:       profile.bio.trim() || null,
+        website:   profile.website.trim() || null,
       });
 
       setSaved(true);
@@ -78,7 +77,7 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
-  function set(key: keyof Profile, val: string) {
+  function set(key: keyof SettingsProfile, val: string) {
     setProfile(p => ({ ...p, [key]: val }));
   }
 
@@ -215,10 +214,11 @@ export default function SettingsPage() {
                       <p className="text-xs text-gray-400">youtube.readonly scope</p>
                     </div>
                   </div>
-                  <a href={`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/oauth/youtube`}
+                  <button
+                    onClick={() => api.youtube.connect()}
                     className="btn-secondary text-xs py-1.5 px-3">
                     Reconnect
-                  </a>
+                  </button>
                 </div>
 
                 {/* Instagram — coming soon */}

@@ -1,23 +1,33 @@
-import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { getAuthUrl } from "@/lib/youtube";
-import { routes } from "@/lib/config";
+import { NextRequest, NextResponse } from "next/server";
+import { getUserFromBearer } from "@/lib/supabaseServer";
+import { getAuthUrl, createSignedState } from "@/lib/youtube";
 
 /**
- * GET /api/oauth/youtube
+ * POST /api/oauth/youtube
  *
- * Entry point for the YouTube connect flow. Verifies the user is logged into
- * Tether first, then redirects them to Google's consent screen.
+ * Decoupled entry-point for the YouTube connect flow.
+ *
+ * Accepts an Authorization: Bearer <token> header.
+ * Creates a short-lived signed state that embeds the user's ID so the callback
+ * can identify the user without relying on a session cookie.
+ * Returns the Google consent-screen URL as JSON — the frontend performs the
+ * redirect itself.
+ *
+ * Returns: { url: string }
  */
-export async function GET() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export async function POST(req: NextRequest) {
+  const user = await getUserFromBearer(req.headers.get("Authorization"));
   if (!user) {
-    return NextResponse.redirect(`${routes.login}?error=must_be_logged_in`);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.redirect(getAuthUrl());
+  const state = createSignedState(user.id);
+  const url   = getAuthUrl(state);
+
+  return NextResponse.json({ url });
+}
+
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
 }

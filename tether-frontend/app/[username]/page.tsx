@@ -2,40 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { fmt, timeAgo } from "@/lib/utils";
+import { api, Profile, PlatformInfo } from "@/lib/api";
 import {
-  IconUsers, IconEye, IconVideo, IconYoutube, IconExternal,
-  IconThumbUp, IconChat, IconShield, IconShare, IconCopy, IconCheck
+  IconYoutube, IconExternal, IconShield, IconShare, IconCheck
 } from "@/components/ui/Icons";
-
-interface Profile {
-  username: string;
-  full_name: string | null;
-  bio: string | null;
-  avatar_url: string | null;
-  creator_stage: string | null;
-  aspiration: string | null;
-}
-
-interface PlatformToken {
-  platform: string;
-  platform_username: string;
-  platform_user_id: string;
-  metadata: {
-    handle?: string;
-    thumbnail?: string;
-  };
-}
 
 interface PageState {
   profile: Profile | null;
-  token: PlatformToken | null;
-  ytStats: {
-    subscribers: number;
-    totalViews: number;
-    videoCount: number;
-  } | null;
+  token: PlatformInfo | null;
   notFound: boolean;
 }
 
@@ -48,54 +22,26 @@ function BadgeRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BigStat({ icon: Icon, label, value, color }: {
-  icon: React.ElementType; label: string; value: string; color: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1 p-5 rounded-2xl bg-white border border-gray-100 shadow-card">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1 ${color}`}>
-        <Icon size={20} className="text-white" />
-      </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
-    </div>
-  );
-}
 
 export default function PublicProfilePage() {
   const params = useParams<{ username: string }>();
   const username = params?.username ?? "";
 
-  const [state, setState] = useState<PageState>({ profile: null, token: null, ytStats: null, notFound: false });
+  const [state, setState] = useState<PageState>({ profile: null, token: null, notFound: false });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!username) return;
     async function load() {
-      // Look up profile by username
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("username, full_name, bio, avatar_url, creator_stage, aspiration")
-        .eq("username", username)
-        .single();
-
-      if (error || !profile) {
+      try {
+        // Single backend call — no direct DB access from frontend
+        const { profile, platforms } = await api.creators.get(username);
+        const ytPlatform = platforms.find(p => p.platform === "youtube") ?? null;
+        setState({ profile, token: ytPlatform, notFound: false });
+      } catch {
         setState(s => ({ ...s, notFound: true }));
-        setLoading(false);
-        return;
       }
-
-      // Look up their youtube token (public info only — no tokens)
-      const { data: token } = await supabase
-        .from("platform_tokens")
-        .select("platform, platform_username, platform_user_id, metadata")
-        .eq("platform", "youtube")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      setState({ profile, token: token ?? null, ytStats: null, notFound: false });
       setLoading(false);
     }
     load();
@@ -201,8 +147,8 @@ export default function PublicProfilePage() {
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">{token.platform_username}</p>
-                  {token.metadata?.handle && (
-                    <p className="text-xs text-gray-500">{token.metadata.handle}</p>
+                  {(token.metadata as { handle?: string })?.handle && (
+                    <p className="text-xs text-gray-500">{(token.metadata as { handle?: string }).handle}</p>
                   )}
                 </div>
               </div>
