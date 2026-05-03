@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await adminClient
     .from("profiles")
-    .select("id, username, full_name, bio, website, avatar_url, creator_stage, aspiration, platform_reason")
+    .select("id, username, full_name, bio, website, avatar_url, creator_stage, aspiration, platform_reason, metric_visibility")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -22,12 +22,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const defaultMetricVisibility = {
+    subscribers: true, total_views: true, video_count: true,
+    avg_views: true, view_chart: true, recent_videos: true,
+  };
+
   // Return empty profile shape when not yet created (first visit after signup)
   return NextResponse.json({
     profile: data ?? {
       id: user.id, username: null, full_name: null, bio: null,
       website: null, avatar_url: null, creator_stage: null,
       aspiration: null, platform_reason: null,
+      metric_visibility: defaultMetricVisibility,
     },
     email: user.email ?? null,
   });
@@ -51,7 +57,7 @@ export async function PUT(req: NextRequest) {
   }
 
   // Allow only known profile columns — never let the client set id or timestamps
-  const ALLOWED = ["username", "full_name", "bio", "website", "avatar_url", "creator_stage", "aspiration", "platform_reason"] as const;
+  const ALLOWED = ["username", "full_name", "bio", "website", "avatar_url", "creator_stage", "aspiration", "platform_reason", "metric_visibility"] as const;
   const update: Record<string, unknown> = { id: user.id };
   for (const key of ALLOWED) {
     if (key in body) update[key] = body[key];

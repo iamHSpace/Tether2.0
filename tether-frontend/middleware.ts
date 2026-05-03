@@ -5,13 +5,8 @@ import { NextResponse, type NextRequest } from "next/server";
 // /api/auth  — OAuth callback (/api/auth/callback) must be reachable before
 //              a session exists, otherwise the middleware redirects it to /login
 //              and the PKCE code exchange never happens.
-const PUBLIC_PATHS = ["/login", "/signup", "/onboarding", "/auth", "/api/auth"];
-
-// Known app routes that must NOT be treated as public profile pages.
-// The isPublicProfile regex below matches any single-segment path like
-// /dashboard or /settings — these must be explicitly excluded so
-// unauthenticated users are properly redirected to /login.
-const APP_ROUTES = new Set(["dashboard", "settings", "profile", "analytics", "connections"]);
+// /c/        — Public creator profile pages (e.g. /c/username)
+const PUBLIC_PATHS = ["/login", "/signup", "/onboarding", "/auth", "/api/auth", "/c/"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -36,15 +31,9 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
 
-  // Public profile pages are always accessible, but known app routes are not.
-  const isPublicProfile = /^\/[a-zA-Z0-9_-]+$/.test(path) &&
-    !PUBLIC_PATHS.some(p => path.startsWith(p)) &&
-    path !== "/" &&
-    !APP_ROUTES.has(path.slice(1));
-
   const isPublicPath = PUBLIC_PATHS.some(p => path.startsWith(p));
 
-  if (!user && !isPublicPath && !isPublicProfile) {
+  if (!user && !isPublicPath) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }

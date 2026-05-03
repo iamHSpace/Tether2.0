@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
-import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert } from "@/components/ui/Icons";
+import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck } from "@/components/ui/Icons";
 
 interface SettingsProfile {
   username: string;

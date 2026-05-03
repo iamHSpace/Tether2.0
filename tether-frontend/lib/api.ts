@@ -101,6 +101,20 @@ export interface YouTubeStatsResponse {
   connectedAt: string;
 }
 
+export interface MetricVisibility {
+  subscribers:   boolean;
+  total_views:   boolean;
+  video_count:   boolean;
+  avg_views:     boolean;
+  view_chart:    boolean;
+  recent_videos: boolean;
+}
+
+export const DEFAULT_METRIC_VISIBILITY: MetricVisibility = {
+  subscribers: true, total_views: true, video_count: true,
+  avg_views: true, view_chart: true, recent_videos: true,
+};
+
 export interface Profile {
   id: string;
   username: string | null;
@@ -111,6 +125,7 @@ export interface Profile {
   creator_stage: string | null;
   aspiration: string | null;
   platform_reason: string | null;
+  metric_visibility: MetricVisibility | null;
 }
 
 export interface ProfileResponse {
@@ -138,32 +153,35 @@ export interface CreatorResponse {
 export const api = {
   /** YouTube — authenticated */
   youtube: {
-    /** Fetch YouTube channel stats for the authenticated user. */
     stats: () => get<YouTubeStatsResponse>("/api/youtube/stats"),
-
-    /**
-     * Initiates the YouTube OAuth flow.
-     * POSTs to the backend (Bearer auth), gets the Google consent URL,
-     * then navigates the browser to it.
-     */
     connect: async () => {
       const { url } = await post<{ url: string }>("/api/oauth/youtube");
       window.location.href = url;
     },
   },
 
+  /** Instagram — authenticated */
+  instagram: {
+    connect: async () => {
+      const { url } = await post<{ url: string }>("/api/oauth/instagram");
+      window.location.href = url;
+    },
+  },
+
   /** Authenticated user's own profile */
   profile: {
-    /** GET /api/profile — returns the authenticated user's profile + email */
     get: () => get<ProfileResponse>("/api/profile"),
-
-    /** PUT /api/profile — upserts profile fields (only allowed columns) */
     update: (data: ProfileUpdate) => put<{ profile: Profile }>("/api/profile", data),
+    updateMetrics: (visibility: MetricVisibility) =>
+      put<{ profile: Profile }>("/api/profile", { metric_visibility: visibility }),
+    checkUsername: (username: string) =>
+      get<{ available: boolean; error?: string }>(
+        `/api/profile/check-username?username=${encodeURIComponent(username)}`
+      ),
   },
 
   /** Public creator profiles — no auth required */
   creators: {
-    /** GET /api/creators/:username — public profile + connected platforms */
     get: (username: string) =>
       publicGet<CreatorResponse>(`/api/creators/${encodeURIComponent(username)}`),
   },

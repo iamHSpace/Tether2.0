@@ -23,16 +23,18 @@ export const FRONTEND_URL =
 // ─── App routes ───────────────────────────────────────────────────────────────
 
 export const routes = {
-  home:              `${APP_URL}/`,
-  login:             `${APP_URL}/login`,
-  signup:            `${APP_URL}/signup`,
-  authCallback:      `${APP_URL}/api/auth/callback`,
-  logout:            `${APP_URL}/api/auth/logout`,
-  youtubeOAuth:      `${APP_URL}/api/oauth/youtube`,
-  youtubeCallback:   `${APP_URL}/api/oauth/youtube/callback`,
-  youtubeStats:      `${APP_URL}/api/youtube/stats`,
-  docs:              `${APP_URL}/docs`,
-  docsSpec:          `${APP_URL}/api/docs`,
+  home:               `${APP_URL}/`,
+  login:              `${APP_URL}/login`,
+  signup:             `${APP_URL}/signup`,
+  authCallback:       `${APP_URL}/api/auth/callback`,
+  logout:             `${APP_URL}/api/auth/logout`,
+  youtubeOAuth:       `${APP_URL}/api/oauth/youtube`,
+  youtubeCallback:    `${APP_URL}/api/oauth/youtube/callback`,
+  youtubeStats:       `${APP_URL}/api/youtube/stats`,
+  instagramOAuth:     `${APP_URL}/api/oauth/instagram`,
+  instagramCallback:  `${APP_URL}/api/oauth/instagram/callback`,
+  docs:               `${APP_URL}/docs`,
+  docsSpec:           `${APP_URL}/api/docs`,
 } as const;
 
 // ─── Platform identifiers ─────────────────────────────────────────────────────
@@ -61,6 +63,21 @@ export const youtube = {
 
   // How many recent videos to fetch on the dashboard
   maxRecentVideos: 5,
+} as const;
+
+// ─── Instagram / Facebook OAuth ───────────────────────────────────────────────
+// Instagram Graph API uses Facebook's OAuth infrastructure.
+// Requires a Facebook App with instagram_basic and pages_read_engagement.
+
+export const instagram = {
+  authUrl:   "https://www.facebook.com/v21.0/dialog/oauth",
+  tokenUrl:  "https://graph.facebook.com/v21.0/oauth/access_token",
+  apiBase:   "https://graph.instagram.com/v21.0",
+  fbApiBase: "https://graph.facebook.com/v21.0",
+  // Scopes to request from the user
+  scopes:    "instagram_basic,pages_read_engagement,business_management",
+  // Callback path relative to APP_URL
+  callbackPath: "/api/oauth/instagram/callback",
 } as const;
 
 // ─── Encryption ───────────────────────────────────────────────────────────────
