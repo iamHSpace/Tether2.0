@@ -124,6 +124,7 @@ export default function DashboardPage() {
   const [metricVisibility, setMetricVisibility] = useState<MetricVisibility>(DEFAULT_METRIC_VISIBILITY);
   const [savingMetrics, setSavingMetrics]       = useState(false);
   const [metricsSaved, setMetricsSaved]         = useState(false);
+  const [refreshing, setRefreshing]             = useState(false);
 
   // Read URL params (OAuth callbacks redirect here with status params)
   useEffect(() => {
@@ -171,6 +172,16 @@ export default function DashboardPage() {
     navigator.clipboard.writeText(`${window.location.origin}/c/${profile?.username ?? "me"}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function refreshMetrics() {
+    setRefreshing(true);
+    try {
+      setYtData(await api.youtube.stats());
+    } catch (err) {
+      setYtError(err instanceof Error ? err.message : String(err));
+    }
+    setRefreshing(false);
   }
 
   async function saveMetrics(newVisibility: MetricVisibility) {
@@ -272,9 +283,10 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => api.youtube.connect()}
-                      className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1">
-                      <IconRefresh size={11} /> Reconnect
+                    <button onClick={refreshMetrics} disabled={refreshing}
+                      className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1.5 disabled:opacity-50">
+                      <IconRefresh size={11} className={refreshing ? "animate-spin" : ""} />
+                      {refreshing ? "Refreshing…" : "Refresh metrics"}
                     </button>
                     <a href={`https://youtube.com/channel/${ytData.channel.id}`}
                       target="_blank" rel="noopener noreferrer"

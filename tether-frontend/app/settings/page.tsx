@@ -24,31 +24,38 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "account",       label: "Account",       icon: IconShield  },
 ];
 
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+
 export default function SettingsPage() {
   const [tab, setTab]         = useState<Tab>("profile");
   const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "" });
+  const [savedUsername, setSavedUsername] = useState("");   // username already in DB
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const [usernameHint, setUsernameHint]     = useState<string>("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function load() {
-      // Guard: ensure session exists
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/login"; return; }
 
       try {
-        // Load profile via backend API — no direct DB call
         const { profile: prof, email } = await api.profile.get();
+        const u = prof.username ?? "";
         setProfile({
-          username:   prof.username   ?? "",
+          username:   u,
           full_name:  prof.full_name  ?? "",
           bio:        prof.bio        ?? "",
           website:    prof.website    ?? "",
           avatar_url: prof.avatar_url ?? "",
           email:      email ?? user.email ?? "",
         });
+        setSavedUsername(u);
+        if (u) setUsernameStatus("available");
       } catch {
         setProfile(p => ({ ...p, email: user.email ?? "" }));
       }
@@ -57,22 +64,55 @@ export default function SettingsPage() {
     load();
   }, []);
 
+  function handleUsernameChange(raw: string) {
+    const val = raw.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    setProfile(p => ({ ...p, username: val }));
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!val) { setUsernameStatus("idle"); setUsernameHint(""); return; }
+
+    if (val === savedUsername) {
+      setUsernameStatus("available"); setUsernameHint(""); return;
+    }
+
+    if (val.length < 3) {
+      setUsernameStatus("invalid"); setUsernameHint("At least 3 characters required"); return;
+    }
+
+    setUsernameStatus("checking"); setUsernameHint("");
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { available, error: hint } = await api.profile.checkUsername(val);
+        if (hint) { setUsernameStatus("invalid"); setUsernameHint(hint); }
+        else { setUsernameStatus(available ? "available" : "taken"); setUsernameHint(available ? "" : "This username is already taken"); }
+      } catch {
+        setUsernameStatus("idle"); setUsernameHint("");
+      }
+    }, 450);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (usernameStatus === "taken" || usernameStatus === "invalid") return;
     setSaving(true); setError(null);
     try {
-      // Save via backend API — no direct DB call
       await api.profile.update({
         username:  profile.username.trim() || null,
         full_name: profile.full_name.trim() || null,
         bio:       profile.bio.trim() || null,
         website:   profile.website.trim() || null,
       });
-
+      setSavedUsername(profile.username.trim());
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      // Surface duplicate-username DB errors in plain language
+      setError(msg.includes("unique") || msg.includes("duplicate")
+        ? "That username is already taken. Please choose another."
+        : msg);
     }
     setSaving(false);
   }
@@ -80,6 +120,8 @@ export default function SettingsPage() {
   function set(key: keyof SettingsProfile, val: string) {
     setProfile(p => ({ ...p, [key]: val }));
   }
+
+  const canSave = usernameStatus !== "taken" && usernameStatus !== "invalid" && usernameStatus !== "checking";
 
   if (loading) {
     return (
@@ -148,17 +190,47 @@ export default function SettingsPage() {
                     value={profile.full_name} onChange={e => set("full_name", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Username <span className="text-gray-400 font-normal text-xs">· tether.app/@you</span>
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
-                    <input className="input pl-7"
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">@</span>
+                    <input
+                      className={`input pl-7 pr-8 ${
+                        usernameStatus === "taken" || usernameStatus === "invalid"
+                          ? "border-red-300 focus:ring-red-200"
+                          : usernameStatus === "available" ? "border-green-300 focus:ring-green-200" : ""
+                      }`}
                       placeholder="yourcreatorname"
                       value={profile.username}
-                      onChange={e => set("username", e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                      onChange={e => handleUsernameChange(e.target.value)}
+                      maxLength={30}
+                      autoComplete="off"
+                      spellCheck={false}
                     />
+                    {/* Status indicator */}
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                      {usernameStatus === "checking" && (
+                        <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin inline-block" />
+                      )}
+                      {usernameStatus === "available" && profile.username && (
+                        <IconCheck size={14} className="text-green-500" />
+                      )}
+                      {(usernameStatus === "taken" || usernameStatus === "invalid") && (
+                        <span className="text-red-400 font-bold leading-none">✕</span>
+                      )}
+                    </span>
                   </div>
+                  {/* Hint row */}
+                  {usernameHint ? (
+                    <p className="text-xs text-red-500 mt-1">{usernameHint}</p>
+                  ) : profile.username && usernameStatus === "available" ? (
+                    <p className="text-xs text-green-600 mt-1">
+                      tether.so/c/<strong>{profile.username}</strong>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-1">
+                      3–30 chars · letters, numbers, _ and -
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -185,8 +257,8 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-gray-700">Account email</p>
                   <p className="text-sm text-gray-400">{profile.email}</p>
                 </div>
-                <button type="submit" disabled={saving}
-                  className="btn-primary text-sm flex items-center gap-2">
+                <button type="submit" disabled={saving || !canSave}
+                  className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <IconSave size={14} />
                   {saving ? "Saving…" : "Save changes"}
                 </button>
@@ -217,7 +289,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => api.youtube.connect()}
                     className="btn-secondary text-xs py-1.5 px-3">
-                    Reconnect
+                    Re-authorise
                   </button>
                 </div>
 
