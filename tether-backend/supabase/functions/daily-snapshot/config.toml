@@ -1,0 +1,2 @@
+[functions.daily-snapshot]
+verify_jwt = false

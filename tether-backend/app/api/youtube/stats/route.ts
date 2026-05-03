@@ -77,6 +77,18 @@ export async function GET(req: NextRequest) {
         : Promise.resolve([]),
     ]);
 
+    // 5. Persist a snapshot — fire-and-forget (never block the response)
+    adminClient
+      .from("metric_snapshots")
+      .insert({
+        user_id:  user.id,
+        platform: platforms.YOUTUBE,
+        data:     { channel, videos },
+      })
+      .then(({ error }) => {
+        if (error) console.error("[youtube/stats] snapshot insert failed:", error.message);
+      });
+
     return NextResponse.json({ channel, videos, connectedAt: row.created_at });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
