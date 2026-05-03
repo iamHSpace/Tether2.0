@@ -8,12 +8,10 @@ import Sidebar from "@/components/layout/Sidebar";
 import {
   IconUsers, IconEye, IconVideo, IconTrendUp, IconYoutube,
   IconRefresh, IconExternal, IconThumbUp, IconChat,
-  IconCopy, IconCheck, IconBell,
+  IconCopy, IconCheck, IconBell, IconAlert,
 } from "@/components/ui/Icons";
 
-interface DashboardProfile { username: string | null; email: string; metricVisibility: MetricVisibility; }
-
-// ── Instagram icon ────────────────────────────────────────────────────────────
+// ── Instagram icon ─────────────────────────────────────────────────────────────
 
 function IconInstagram({ size = 20, className = "" }: { size?: number; className?: string }) {
   return (
@@ -23,7 +21,7 @@ function IconInstagram({ size = 20, className = "" }: { size?: number; className
   );
 }
 
-// ── Toggle switch ─────────────────────────────────────────────────────────────
+// ── Toggle ─────────────────────────────────────────────────────────────────────
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -36,97 +34,144 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       )}
       aria-pressed={enabled}
     >
-      <span
-        className={cn(
-          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
-          enabled ? "translate-x-4" : "translate-x-0"
-        )}
-      />
+      <span className={cn(
+        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+        enabled ? "translate-x-4" : "translate-x-0"
+      )} />
     </button>
   );
 }
 
-// ── Sparkline ─────────────────────────────────────────────────────────────────
+// ── Bezier area chart ──────────────────────────────────────────────────────────
 
-function Sparkline({ data, color = "#7c3aed" }: { data: number[]; color?: string }) {
-  if (data.length < 2) return null;
+function AreaChart({
+  data, color, gradientId,
+}: { data: number[]; color: string; gradientId: string }) {
+  if (data.length < 2) return <div className="h-24 flex items-center justify-center text-xs text-gray-300">Not enough data</div>;
+  const W = 500; const H = 96;
   const max = Math.max(...data); const min = Math.min(...data);
   const range = max - min || 1;
-  const w = 280; const h = 80;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 8) - 4;
-    return `${x},${y}`;
-  });
-  const polyline = pts.join(" ");
-  const area = `0,${h} ${polyline} ${w},${h}`;
+  const pts: [number, number][] = data.map((v, i) => [
+    (i / (data.length - 1)) * W,
+    H - 10 - ((v - min) / range) * (H - 20),
+  ]);
+  let linePath = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const cpX = (pts[i - 1][0] + pts[i][0]) / 2;
+    linePath += ` C ${cpX},${pts[i - 1][1]} ${cpX},${pts[i][1]} ${pts[i][0]},${pts[i][1]}`;
+  }
+  const areaPath = `${linePath} L ${pts[pts.length - 1][0]},${H} L ${pts[0][0]},${H} Z`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="80" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`grad-${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.18"/>
-          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon points={area} fill={`url(#grad-${color.replace("#","")})`} />
-      <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
+// ── Error alert ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, Icon, color, trend }: {
-  label: string; value: string; Icon: React.ElementType; color: string; trend?: string;
-}) {
+function ErrorAlert({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="stat-card">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${color}`}>
-        <Icon size={18} className="text-white" />
+    <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-100">
+      <IconAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-red-700">Something went wrong</p>
+        <p className="text-xs text-red-500 mt-0.5 break-words">{message}</p>
       </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500 font-medium">{label}</p>
-      {trend && <p className="text-[11px] text-green-500 font-semibold mt-0.5">{trend}</p>}
+      {onRetry && (
+        <button onClick={onRetry}
+          className="shrink-0 text-xs font-medium text-red-600 hover:text-red-800 transition-colors px-2 py-1 rounded-lg hover:bg-red-100">
+          Retry
+        </button>
+      )}
     </div>
   );
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
+// ── Skeleton ───────────────────────────────────────────────────────────────────
 
-function SectionHeader({ title, description }: { title: string; description: string }) {
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={cn("animate-pulse bg-gray-200/70 rounded-xl", className)} />;
+}
+
+function StatCardSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card space-y-3">
+      <Skeleton className="w-10 h-10 rounded-xl" />
+      <Skeleton className="h-7 w-20 rounded-lg" />
+      <Skeleton className="h-3 w-24 rounded" />
+    </div>
+  );
+}
+
+// ── Stat card ──────────────────────────────────────────────────────────────────
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+  bg: string;
+  iconColor: string;
+}
+
+function StatCard({ label, value, icon: Icon, bg, iconColor }: StatCardProps) {
+  return (
+    <div className={cn("rounded-2xl p-5 border border-white/60 shadow-card", bg)}>
+      <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3", iconColor, "bg-white/50")}>
+        <Icon size={17} className={iconColor} />
+      </div>
+      <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
+      <p className="text-xs font-medium text-gray-500 mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+// ── Section header ─────────────────────────────────────────────────────────────
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-base font-bold text-gray-900">{title}</h2>
-      <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+      <h2 className="text-sm font-bold text-gray-900 tracking-tight">{title}</h2>
+      {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
     </div>
   );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ── Metric defs ────────────────────────────────────────────────────────────────
 
-const METRIC_DEFS: { key: keyof MetricVisibility; label: string; description: string; Icon: React.ElementType }[] = [
-  { key: "subscribers",   label: "Subscribers",          description: "YouTube subscriber count",           Icon: IconUsers   },
-  { key: "total_views",   label: "Total Views",           description: "Lifetime channel view count",        Icon: IconEye     },
-  { key: "video_count",   label: "Videos Published",      description: "Total number of uploaded videos",    Icon: IconVideo   },
-  { key: "avg_views",     label: "Avg Views / Video",     description: "Average views across all videos",    Icon: IconTrendUp },
-  { key: "view_chart",    label: "Performance Chart",     description: "Views & likes chart from recent uploads", Icon: IconEye },
-  { key: "recent_videos", label: "Recent Videos",         description: "List of most recent uploads",        Icon: IconVideo   },
+const METRIC_DEFS: { key: keyof MetricVisibility; label: string; desc: string; Icon: React.ElementType }[] = [
+  { key: "subscribers",   label: "Subscribers",        desc: "YouTube subscriber count",            Icon: IconUsers   },
+  { key: "total_views",   label: "Total Views",         desc: "Lifetime channel view count",         Icon: IconEye     },
+  { key: "video_count",   label: "Videos Published",    desc: "Total number of uploaded videos",     Icon: IconVideo   },
+  { key: "avg_views",     label: "Avg Views / Video",   desc: "Average views across all videos",     Icon: IconTrendUp },
+  { key: "view_chart",    label: "Performance Chart",   desc: "Views chart from recent uploads",     Icon: IconEye     },
+  { key: "recent_videos", label: "Recent Videos",       desc: "List of most recent uploads",         Icon: IconVideo   },
 ];
 
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+interface DashboardProfile { username: string | null; email: string; metricVisibility: MetricVisibility; }
+
 export default function DashboardPage() {
-  const [profile, setProfile]       = useState<DashboardProfile | null>(null);
-  const [ytData, setYtData]         = useState<YouTubeStatsResponse | null>(null);
-  const [ytError, setYtError]       = useState<string | null>(null);
-  const [igPlatform, setIgPlatform] = useState<PlatformInfo | null>(null);
-  const [platforms, setPlatforms]   = useState<PlatformInfo[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [copied, setCopied]         = useState(false);
+  const [profile, setProfile]         = useState<DashboardProfile | null>(null);
+  const [ytData, setYtData]           = useState<YouTubeStatsResponse | null>(null);
+  const [ytError, setYtError]         = useState<string | null>(null);
+  const [igPlatform, setIgPlatform]   = useState<PlatformInfo | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [ytConnected, setYtConnected] = useState<boolean | null>(null);
+  const [copied, setCopied]           = useState(false);
   const [metricVisibility, setMetricVisibility] = useState<MetricVisibility>(DEFAULT_METRIC_VISIBILITY);
   const [savingMetrics, setSavingMetrics]       = useState(false);
   const [metricsSaved, setMetricsSaved]         = useState(false);
   const [refreshing, setRefreshing]             = useState(false);
 
-  // Read URL params (OAuth callbacks redirect here with status params)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("youtube_connected") || params.has("instagram_connected") ||
@@ -148,20 +193,29 @@ export default function DashboardPage() {
       setProfile({ username: null, email: user.email ?? "", metricVisibility: DEFAULT_METRIC_VISIBILITY });
     }
 
-    try { setYtData(await api.youtube.stats()); }
-    catch (err) { setYtError(err instanceof Error ? err.message : String(err)); }
-
-    // Load connected platforms for Instagram detection
     try {
-      const { platforms: plats } = await api.creators.get(
-        (await api.profile.get()).profile.username ?? ""
-      );
-      setPlatforms(plats);
-      const ig = plats.find(p => p.platform === "instagram") ?? null;
-      setIgPlatform(ig);
-    } catch {
-      // Non-fatal — platforms section degrades gracefully
+      const data = await api.youtube.stats();
+      setYtData(data);
+      setYtConnected(true);
+      setYtError(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("no youtube")) {
+        setYtConnected(false);
+      } else {
+        setYtConnected(true);
+        setYtError(msg);
+      }
     }
+
+    try {
+      const { profile: prof } = await api.profile.get();
+      if (prof.username) {
+        const { platforms } = await api.creators.get(prof.username);
+        const ig = platforms.find(p => p.platform === "instagram") ?? null;
+        setIgPlatform(ig);
+      }
+    } catch { /* non-fatal */ }
 
     setLoading(false);
   }, []);
@@ -176,6 +230,7 @@ export default function DashboardPage() {
 
   async function refreshMetrics() {
     setRefreshing(true);
+    setYtError(null);
     try {
       setYtData(await api.youtube.stats());
     } catch (err) {
@@ -184,15 +239,13 @@ export default function DashboardPage() {
     setRefreshing(false);
   }
 
-  async function saveMetrics(newVisibility: MetricVisibility) {
+  async function saveMetrics(vis: MetricVisibility) {
     setSavingMetrics(true);
     try {
-      await api.profile.updateMetrics(newVisibility);
+      await api.profile.updateMetrics(vis);
       setMetricsSaved(true);
       setTimeout(() => setMetricsSaved(false), 2500);
-    } catch (e) {
-      console.error("Failed to save metrics:", e);
-    }
+    } catch { /* non-fatal */ }
     setSavingMetrics(false);
   }
 
@@ -203,164 +256,276 @@ export default function DashboardPage() {
   }
 
   const viewsData = ytData?.videos.map(v => v.views) ?? [];
-  const likesData = ytData?.videos.map(v => v.likes) ?? [];
-  const igMeta    = igPlatform?.metadata as { username?: string; followers_count?: number; media_count?: number } | undefined;
+  const igMeta = igPlatform?.metadata as { username?: string; followers_count?: number; media_count?: number } | undefined;
+  const avgViews = ytData ? Math.round(ytData.channel.totalViews / (ytData.channel.videoCount || 1)) : 0;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-[#f5f0e8] overflow-hidden">
       <Sidebar email={profile?.email} username={profile?.username ?? undefined} />
 
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+        <header className="bg-white/70 backdrop-blur-sm border-b border-white/80 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h1 className="text-base font-bold text-gray-900">
               {loading ? "Loading…" : `Welcome back${profile?.username ? `, @${profile.username}` : ""}!`}
-            </p>
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">Here&apos;s your creator dashboard</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {profile?.username && (
               <button onClick={copyLink}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all">
-                {copied ? <IconCheck size={13} className="text-green-500" /> : <IconCopy size={13} />}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-all shadow-sm">
+                {copied ? <IconCheck size={12} className="text-green-500" /> : <IconCopy size={12} />}
                 {copied ? "Copied!" : "Copy profile link"}
               </button>
             )}
-            <button className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
-              <IconBell size={16} className="text-gray-500" />
+            <button className="w-8 h-8 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 shadow-sm">
+              <IconBell size={14} className="text-gray-400" />
             </button>
           </div>
         </header>
 
-        <div className="p-8 space-y-8">
+        <div className="p-8 space-y-7 max-w-6xl">
 
-          {/* ── Platform Connections ─────────────────────────────────────────── */}
+          {/* ── Stat cards ────────────────────────────────────────────────── */}
+          {loading ? (
+            <div className="grid grid-cols-3 gap-4">
+              <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
+            </div>
+          ) : ytData ? (
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard
+                label="Subscribers"
+                value={fmt(ytData.channel.subscribers)}
+                icon={IconUsers}
+                bg="bg-[#e8f5f0]"
+                iconColor="text-emerald-600"
+              />
+              <StatCard
+                label="Total Views"
+                value={fmt(ytData.channel.totalViews)}
+                icon={IconEye}
+                bg="bg-[#fef9ec]"
+                iconColor="text-amber-500"
+              />
+              <StatCard
+                label="Avg Views / Video"
+                value={fmt(avgViews)}
+                icon={IconTrendUp}
+                bg="bg-[#fdf0f3]"
+                iconColor="text-rose-500"
+              />
+            </div>
+          ) : ytError ? (
+            <ErrorAlert message={ytError} onRetry={refreshMetrics} />
+          ) : null}
+
+          {/* ── Platform connections ───────────────────────────────────────── */}
           <section>
-            <SectionHeader
-              title="Platform Connections"
-              description="Connect your accounts so Tether can pull live, verified metrics."
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SectionHeader title="Platform Connections" subtitle="Connect your accounts to pull live, verified metrics." />
+            <div className="grid grid-cols-2 gap-4">
               {/* YouTube */}
-              {!loading && !ytData ? (
-                <div className="card p-5 flex items-center justify-between border-dashed border-2 border-red-100 bg-gradient-to-r from-red-50 to-white">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-2xl bg-red-600 flex items-center justify-center shrink-0">
-                      <IconYoutube size={22} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">YouTube</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Not connected</p>
-                      {ytError && !ytError.includes("not connected") && (
-                        <p className="text-[11px] text-red-500 mt-1">{ytError}</p>
-                      )}
-                    </div>
-                  </div>
-                  <button onClick={() => api.youtube.connect()}
-                    className="btn-primary text-xs py-2 px-3 flex items-center gap-1.5 shrink-0">
-                    <IconYoutube size={13} className="text-white" /> Connect
-                  </button>
-                </div>
+              {loading ? (
+                <Skeleton className="h-20 rounded-2xl" />
               ) : ytData ? (
-                <div className="card p-5 flex items-center justify-between">
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {ytData.channel.thumbnail
-                      ? <img src={ytData.channel.thumbnail} alt={ytData.channel.name}
-                          width={44} height={44} className="rounded-full ring-2 ring-brand-100" />
-                      : <div className="w-11 h-11 rounded-full bg-red-600 flex items-center justify-center">
-                          <IconYoutube size={22} className="text-white" />
-                        </div>
+                      ? <img src={ytData.channel.thumbnail} alt={ytData.channel.name} width={40} height={40} className="rounded-full ring-2 ring-red-100" />
+                      : <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center"><IconYoutube size={20} className="text-white" /></div>
                     }
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 text-sm">{ytData.channel.name}</p>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Connected</span>
+                        <p className="text-sm font-semibold text-gray-900">{ytData.channel.name}</p>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Live</span>
                       </div>
-                      {ytData.channel.handle && <p className="text-xs text-gray-500">{ytData.channel.handle}</p>}
-                      <p className="text-[11px] text-gray-400">Connected {timeAgo(ytData.connectedAt)}</p>
+                      {ytData.channel.handle && <p className="text-xs text-gray-400">{ytData.channel.handle}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={refreshMetrics} disabled={refreshing}
-                      className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1.5 disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50 transition-all">
                       <IconRefresh size={11} className={refreshing ? "animate-spin" : ""} />
-                      {refreshing ? "Refreshing…" : "Refresh metrics"}
+                      {refreshing ? "Refreshing…" : "Refresh"}
                     </button>
-                    <a href={`https://youtube.com/channel/${ytData.channel.id}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1">
-                      <IconExternal size={11} />
+                    <a href={`https://youtube.com/channel/${ytData.channel.id}`} target="_blank" rel="noopener noreferrer"
+                      className="w-7 h-7 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                      <IconExternal size={11} className="text-gray-400" />
                     </a>
                   </div>
                 </div>
-              ) : loading ? (
-                <div className="card p-5 h-20 animate-pulse bg-gray-100/60" />
-              ) : null}
-
-              {/* Instagram */}
-              {!loading && !igPlatform ? (
-                <div className="card p-5 flex items-center justify-between border-dashed border-2"
-                  style={{ borderColor: "#fbcfe8", background: "linear-gradient(to right, #fdf2f8, white)" }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-                      style={{ background: "linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)" }}>
-                      <IconInstagram size={22} className="text-white" />
+              ) : (
+                <div className="bg-white rounded-2xl p-4 border-2 border-dashed border-red-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
+                      <IconYoutube size={18} className="text-red-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">Instagram</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Not connected</p>
-                      <p className="text-[11px] text-gray-300 mt-0.5">Requires a Professional account linked to a Facebook Page</p>
+                      <p className="text-sm font-semibold text-gray-900">YouTube</p>
+                      <p className="text-xs text-gray-400">Not connected</p>
                     </div>
                   </div>
-                  <button onClick={() => api.instagram.connect()}
-                    className="text-xs py-2 px-3 rounded-xl font-medium text-white shrink-0 flex items-center gap-1.5 transition-opacity hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #f09433, #bc1888)" }}>
-                    <IconInstagram size={13} /> Connect
+                  <button onClick={() => api.youtube.connect()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors shrink-0">
+                    <IconYoutube size={12} className="text-white" /> Connect
                   </button>
                 </div>
+              )}
+
+              {/* Instagram */}
+              {loading ? (
+                <Skeleton className="h-20 rounded-2xl" />
               ) : igPlatform ? (
-                <div className="card p-5 flex items-center justify-between">
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: "linear-gradient(135deg, #f09433 0%, #bc1888 100%)" }}>
-                      <IconInstagram size={22} className="text-white" />
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
+                      <IconInstagram size={18} className="text-white" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 text-sm">{igPlatform.platform_username}</p>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Connected</span>
+                        <p className="text-sm font-semibold text-gray-900">{igPlatform.platform_username}</p>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Live</span>
                       </div>
-                      {igMeta?.username && <p className="text-xs text-gray-500">@{igMeta.username}</p>}
                       {igMeta?.followers_count !== undefined && (
-                        <p className="text-[11px] text-gray-400">{fmt(igMeta.followers_count)} followers</p>
+                        <p className="text-xs text-gray-400">{fmt(igMeta.followers_count)} followers</p>
                       )}
                     </div>
                   </div>
                   {igMeta?.username && (
-                    <a href={`https://instagram.com/${igMeta.username}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1 shrink-0">
-                      <IconExternal size={11} />
+                    <a href={`https://instagram.com/${igMeta.username}`} target="_blank" rel="noopener noreferrer"
+                      className="w-7 h-7 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                      <IconExternal size={11} className="text-gray-400" />
                     </a>
                   )}
                 </div>
-              ) : loading ? (
-                <div className="card p-5 h-20 animate-pulse bg-gray-100/60" />
-              ) : null}
+              ) : (
+                <div className="bg-white rounded-2xl p-4 border-2 border-dashed border-pink-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-pink-50 border border-pink-100 flex items-center justify-center">
+                      <IconInstagram size={18} className="text-pink-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Instagram</p>
+                      <p className="text-xs text-gray-400">Requires a Professional account</p>
+                    </div>
+                  </div>
+                  <button onClick={() => api.instagram.connect()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white shrink-0 hover:opacity-90 transition-opacity"
+                    style={{ background: "linear-gradient(135deg,#f09433,#bc1888)" }}>
+                    <IconInstagram size={12} /> Connect
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 
-          {/* ── Metric Visibility ────────────────────────────────────────────── */}
+          {/* ── YouTube Analytics ──────────────────────────────────────────── */}
+          {ytData && (
+            <section>
+              <SectionHeader title="YouTube Analytics" subtitle="Live metrics pulled directly from the YouTube Data API." />
+
+              {/* Area chart */}
+              {viewsData.length >= 2 && (
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card mb-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">Video Performance</h3>
+                      <p className="text-xs text-gray-400">Views across recent uploads</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-lg">
+                      <span className="w-2 h-2 rounded-full bg-brand-500 inline-block" />
+                      Last {ytData.videos.length} videos
+                    </div>
+                  </div>
+                  <AreaChart data={viewsData} color="#7c3aed" gradientId="views-area" />
+                  <div className="flex items-center justify-between mt-2 text-[11px] text-gray-300 px-1">
+                    <span>Oldest</span>
+                    <span>Peak: {fmt(Math.max(...viewsData))} views</span>
+                    <span>Latest</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Post activity table */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+                  <h3 className="text-sm font-bold text-gray-900">Post Activity</h3>
+                  <span className="text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-lg">
+                    {ytData.videos.length} videos
+                  </span>
+                </div>
+                {ytData.videos.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-gray-400">No videos found on this channel.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {ytData.videos.map(v => (
+                      <div key={v.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                        {v.thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={v.thumbnail} alt={v.title} width={80} height={48}
+                            className="rounded-xl object-cover shrink-0 border border-gray-100" />
+                        ) : (
+                          <div className="w-20 h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                            <IconVideo size={16} className="text-gray-300" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 line-clamp-1">{v.title}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(v.publishedAt)}</p>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0 text-xs text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <IconEye size={12} className="text-gray-300" /> {fmt(v.views)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <IconThumbUp size={12} className="text-gray-300" /> {fmt(v.likes)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <IconChat size={12} className="text-gray-300" /> {fmt(v.comments)}
+                          </span>
+                          <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer"
+                            className="w-6 h-6 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors">
+                            <IconExternal size={10} className="text-gray-400" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* ── No YouTube connected state ─────────────────────────────────── */}
+          {!loading && ytConnected === false && !ytData && (
+            <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+                <IconYoutube size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Connect YouTube to see analytics</h3>
+              <p className="text-xs text-gray-400 mb-4 max-w-xs mx-auto">
+                Link your YouTube channel to start showing verified metrics on your public profile.
+              </p>
+              <button onClick={() => api.youtube.connect()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors">
+                <IconYoutube size={15} className="text-white" /> Connect YouTube
+              </button>
+            </div>
+          )}
+
+          {/* ── Metric Visibility ──────────────────────────────────────────── */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-base font-bold text-gray-900">Metric Visibility</h2>
+                <h2 className="text-sm font-bold text-gray-900">Metric Visibility</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Choose which stats appear on your public profile at{" "}
+                  Control what appears on your public profile at{" "}
                   {profile?.username
-                    ? <a href={`/c/${profile.username}`} target="_blank" className="text-brand-600 font-medium hover:underline">
+                    ? <a href={`/c/${profile.username}`} target="_blank" className="text-brand-600 hover:underline">
                         tether.so/c/{profile.username}
                       </a>
                     : "your public profile"
@@ -368,135 +533,50 @@ export default function DashboardPage() {
                 </p>
               </div>
               {metricsSaved && (
-                <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-                  <IconCheck size={13} /> Saved
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <IconCheck size={12} /> Saved
                 </span>
               )}
               {savingMetrics && !metricsSaved && (
                 <span className="text-xs text-gray-400">Saving…</span>
               )}
             </div>
-
-            <div className="card divide-y divide-gray-50">
-              {METRIC_DEFS.map(({ key, label, description, Icon }) => (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-50">
+              {METRIC_DEFS.map(({ key, label, desc, Icon }) => (
                 <div key={key} className="flex items-center justify-between px-5 py-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center">
-                      <Icon size={15} className="text-gray-500" />
+                    <div className="w-8 h-8 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                      <Icon size={14} className="text-gray-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{label}</p>
-                      <p className="text-xs text-gray-400">{description}</p>
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
                     </div>
                   </div>
-                  <Toggle
-                    enabled={metricVisibility[key]}
-                    onChange={() => toggleMetric(key)}
-                  />
+                  <Toggle enabled={metricVisibility[key]} onChange={() => toggleMetric(key)} />
                 </div>
               ))}
             </div>
           </section>
 
-          {/* ── YouTube Stats ────────────────────────────────────────────────── */}
-          {ytData && (
-            <section>
-              <SectionHeader
-                title="YouTube Analytics"
-                description="Live metrics pulled directly from the YouTube Data API."
-              />
-
-              {/* Stats grid */}
-              <div className="grid grid-cols-4 gap-4 mb-4">
-                <StatCard label="Subscribers"     value={fmt(ytData.channel.subscribers)} Icon={IconUsers}   color="bg-brand-500" />
-                <StatCard label="Total Views"     value={fmt(ytData.channel.totalViews)}  Icon={IconEye}     color="bg-blue-500"  />
-                <StatCard label="Videos"          value={fmt(ytData.channel.videoCount)}  Icon={IconVideo}   color="bg-green-500" />
-                <StatCard label="Avg Views/Video" Icon={IconTrendUp} color="bg-orange-400"
-                  value={fmt(Math.round(ytData.channel.totalViews / (ytData.channel.videoCount || 1)))} />
-              </div>
-
-              {/* Charts + recent videos */}
-              <div className="grid grid-cols-5 gap-4">
-                <div className="card p-5 col-span-3">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-sm">Video Performance</h3>
-                      <p className="text-xs text-gray-400">Views & likes across recent uploads</p>
-                    </div>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg">
-                      Last {ytData.videos.length} videos
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-brand-600 font-medium flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-brand-500 inline-block" /> Views
-                        </span>
-                        <span className="text-xs text-gray-400">{fmt(Math.max(...viewsData))} peak</span>
-                      </div>
-                      <Sparkline data={viewsData} color="#7c3aed" />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Likes
-                        </span>
-                        <span className="text-xs text-gray-400">{fmt(Math.max(...likesData))} peak</span>
-                      </div>
-                      <Sparkline data={likesData} color="#3b82f6" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 col-span-2">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-4">Recent Videos</h3>
-                  <div className="space-y-3.5">
-                    {ytData.videos.map(v => (
-                      <div key={v.id} className="flex gap-3 items-start">
-                        {v.thumbnail && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={v.thumbnail} alt={v.title} width={72} height={44}
-                            className="rounded-lg object-cover shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-relaxed">{v.title}</p>
-                          <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-400">
-                            <span className="flex items-center gap-0.5"><IconEye size={10} />{fmt(v.views)}</span>
-                            <span className="flex items-center gap-0.5"><IconThumbUp size={10} />{fmt(v.likes)}</span>
-                            <span className="flex items-center gap-0.5"><IconChat size={10} />{fmt(v.comments)}</span>
-                          </div>
-                          <p className="text-[10px] text-gray-300 mt-0.5">{timeAgo(v.publishedAt)}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {ytData.videos.length === 0 && (
-                      <p className="text-xs text-gray-400">No recent videos found.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* ── Share CTA ────────────────────────────────────────────────────── */}
+          {/* ── Share CTA ──────────────────────────────────────────────────── */}
           {profile?.username && (
-            <div className="card p-5 flex items-center justify-between bg-gradient-to-r from-brand-600 to-purple-700 border-0">
+            <div className="bg-gradient-to-r from-brand-600 to-purple-700 rounded-2xl p-5 flex items-center justify-between">
               <div>
-                <p className="text-white font-semibold">Your verified profile is live 🎉</p>
-                <p className="text-brand-200 text-sm mt-0.5">
-                  Share this link with brands — no screenshots needed.
+                <p className="text-white font-bold text-sm">Your verified profile is live</p>
+                <p className="text-brand-200 text-xs mt-0.5">
+                  Share tether.so/c/{profile.username} with brands — no screenshots needed.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={copyLink}
-                  className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all", "bg-white text-brand-700 hover:bg-brand-50")}>
-                  {copied ? <IconCheck size={14} className="text-green-500" /> : <IconCopy size={14} />}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-brand-700 hover:bg-brand-50 transition-colors">
+                  {copied ? <IconCheck size={12} className="text-green-500" /> : <IconCopy size={12} />}
                   {copied ? "Copied!" : "Copy link"}
                 </button>
                 <a href={`/c/${profile.username}`} target="_blank"
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/10 text-white hover:bg-white/20 transition-all">
-                  <IconExternal size={14} /> View profile
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/15 text-white hover:bg-white/25 transition-colors">
+                  <IconExternal size={12} /> View
                 </a>
               </div>
             </div>

@@ -5,37 +5,12 @@ import { useParams } from "next/navigation";
 import { api, Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
 import { fmt } from "@/lib/utils";
 import {
-  IconYoutube, IconExternal, IconShield, IconShare, IconCheck, IconUsers, IconEye, IconVideo, IconTrendUp
+  IconYoutube, IconExternal, IconShield, IconShare, IconCheck,
+  IconUsers, IconEye, IconVideo, IconTrendUp, IconAlert,
 } from "@/components/ui/Icons";
 
-interface PageState {
-  profile: Profile | null;
-  platforms: PlatformInfo[];
-  notFound: boolean;
-}
+// ── Instagram icon ─────────────────────────────────────────────────────────────
 
-function BadgeRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-semibold text-gray-900">{value}</span>
-    </div>
-  );
-}
-
-function MetricPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-      <div className="w-8 h-8 rounded-xl bg-white border border-gray-100 flex items-center justify-center shadow-sm">
-        <Icon size={15} className="text-brand-600" />
-      </div>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
-      <p className="text-[11px] text-gray-500 font-medium">{label}</p>
-    </div>
-  );
-}
-
-// Instagram icon (inline SVG, no external dep)
 function IconInstagram({ size = 20, className = "" }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -44,27 +19,99 @@ function IconInstagram({ size = 20, className = "" }: { size?: number; className
   );
 }
 
+// ── Bezier area chart ──────────────────────────────────────────────────────────
+
+function AreaChart({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
+  if (data.length < 2) return null;
+  const W = 500; const H = 80;
+  const max = Math.max(...data); const min = Math.min(...data);
+  const range = max - min || 1;
+  const pts: [number, number][] = data.map((v, i) => [
+    (i / (data.length - 1)) * W,
+    H - 8 - ((v - min) / range) * (H - 16),
+  ]);
+  let linePath = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const cpX = (pts[i - 1][0] + pts[i][0]) / 2;
+    linePath += ` C ${cpX},${pts[i - 1][1]} ${cpX},${pts[i][1]} ${pts[i][0]},${pts[i][1]}`;
+  }
+  const areaPath = `${linePath} L ${pts[pts.length - 1][0]},${H} L ${pts[0][0]},${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── Metric card ────────────────────────────────────────────────────────────────
+
+function MetricCard({
+  icon: Icon, label, value, bg, iconColor,
+}: { icon: React.ElementType; label: string; value: string; bg: string; iconColor: string }) {
+  return (
+    <div className={`rounded-2xl p-4 flex flex-col items-center gap-1.5 text-center border border-white/60 ${bg}`}>
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/50 mb-0.5 ${iconColor}`}>
+        <Icon size={15} />
+      </div>
+      <p className="text-xl font-bold text-gray-900 leading-none">{value}</p>
+      <p className="text-xs text-gray-500 font-medium">{label}</p>
+    </div>
+  );
+}
+
+// ── Skeleton ───────────────────────────────────────────────────────────────────
+
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse bg-gray-200/80 rounded-xl ${className}`} />;
+}
+
+// ── Page state ─────────────────────────────────────────────────────────────────
+
+interface PageState { profile: Profile | null; platforms: PlatformInfo[]; notFound: boolean; }
+
+const stageLabels: Record<string, string> = {
+  just_starting: "Just starting out",
+  growing:       "Growing fast",
+  established:   "Established creator",
+  pro:           "Pro creator",
+};
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
 export default function CreatorPublicProfile() {
   const params = useParams<{ username: string }>();
   const username = params?.username ?? "";
 
   const [state, setState] = useState<PageState>({ profile: null, platforms: [], notFound: false });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (!username) return;
-    async function load() {
-      try {
-        const { profile, platforms } = await api.creators.get(username);
-        setState({ profile, platforms, notFound: false });
-      } catch {
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { profile, platforms } = await api.creators.get(username);
+      setState({ profile, platforms, notFound: false });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
         setState(s => ({ ...s, notFound: true }));
+      } else {
+        setError(msg);
       }
-      setLoading(false);
     }
-    load();
-  }, [username]);
+    setLoading(false);
+  }
+
+  useEffect(() => { if (username) load(); }, [username]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function share() {
     navigator.clipboard.writeText(window.location.href);
@@ -72,229 +119,304 @@ export default function CreatorPublicProfile() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const stageLabels: Record<string, string> = {
-    just_starting: "🌱 Just starting out",
-    growing:       "🚀 Growing fast",
-    established:   "⭐ Established",
-    pro:           "👑 Pro creator",
-  };
-
+  // ── Loading state ────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-[#f5f0e8]">
+        <nav className="bg-white/70 backdrop-blur-sm border-b border-white/80 px-6 py-4">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span className="text-sm font-bold text-gray-800">Tether</span>
+            </div>
+          </div>
+        </nav>
+        <main className="max-w-2xl mx-auto px-6 py-10 space-y-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="w-20 h-20 rounded-2xl" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-6 w-40 rounded-lg" />
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="h-3 w-64 rounded" />
+            </div>
+          </div>
+          <Skeleton className="h-12 rounded-2xl" />
+          <Skeleton className="h-40 rounded-2xl" />
+        </main>
       </div>
     );
   }
 
+  // ── Error state ──────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#f5f0e8] flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center">
+          <IconAlert size={24} className="text-red-400" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-gray-900 mb-1">Could not load profile</h1>
+          <p className="text-sm text-gray-400 max-w-xs">{error}</p>
+        </div>
+        <button onClick={load}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  // ── Not found ────────────────────────────────────────────────────────────────
   if (state.notFound) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 text-center p-4">
-        <p className="text-6xl">🔍</p>
-        <h1 className="text-2xl font-bold text-gray-900">Profile not found</h1>
-        <p className="text-gray-500">No creator found with username <strong>@{username}</strong></p>
-        <a href="/" className="btn-primary mt-2 text-sm">Go home</a>
+      <div className="min-h-screen bg-[#f5f0e8] flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="text-5xl mb-2">🔍</div>
+        <h1 className="text-xl font-bold text-gray-900">Profile not found</h1>
+        <p className="text-sm text-gray-400">No creator with the username <strong>@{username}</strong> was found.</p>
+        <a href="/" className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors mt-1">
+          Go home
+        </a>
       </div>
     );
   }
 
+  // ── Profile ──────────────────────────────────────────────────────────────────
   const { profile, platforms } = state;
   const mv: MetricVisibility = (profile?.metric_visibility as MetricVisibility) ?? DEFAULT_METRIC_VISIBILITY;
 
-  const ytPlatform   = platforms.find(p => p.platform === "youtube") ?? null;
-  const igPlatform   = platforms.find(p => p.platform === "instagram") ?? null;
-  const ytMeta       = ytPlatform?.metadata as { handle?: string; thumbnail?: string; subscribers?: number; totalViews?: number; videoCount?: number } | undefined;
-  const igMeta       = igPlatform?.metadata as { username?: string; followers_count?: number; media_count?: number; profile_picture_url?: string } | undefined;
+  const ytPlatform = platforms.find(p => p.platform === "youtube") ?? null;
+  const igPlatform = platforms.find(p => p.platform === "instagram") ?? null;
+  const ytMeta = ytPlatform?.metadata as {
+    handle?: string; thumbnail?: string;
+    subscribers?: number; totalViews?: number; videoCount?: number;
+  } | undefined;
+  const igMeta = igPlatform?.metadata as {
+    username?: string; followers_count?: number; media_count?: number;
+  } | undefined;
 
-  const hasAnyPlatform = ytPlatform || igPlatform;
+  const avgViews = ytMeta?.totalViews && ytMeta?.videoCount
+    ? Math.round(ytMeta.totalViews / Math.max(ytMeta.videoCount, 1))
+    : null;
+
+  const initials = (profile?.full_name?.[0] ?? profile?.username?.[0] ?? "?").toUpperCase();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-[#f5f0e8]">
       {/* Top nav */}
-      <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between max-w-4xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="text-white">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+      <nav className="bg-white/70 backdrop-blur-sm border-b border-white/80 sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-gray-800">Tether</span>
           </div>
-          <span className="text-sm font-bold text-gray-800">Tether</span>
+          <button onClick={share}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 shadow-sm transition-colors">
+            {copied ? <IconCheck size={12} className="text-green-500" /> : <IconShare size={12} />}
+            {copied ? "Copied!" : "Share"}
+          </button>
         </div>
-        <button onClick={share}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 text-gray-600">
-          {copied ? <IconCheck size={12} className="text-green-500" /> : <IconShare size={12} />}
-          {copied ? "Copied!" : "Share profile"}
-        </button>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-10">
-        {/* Hero */}
-        <div className="flex items-start gap-6 mb-8">
-          <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-400 to-purple-600 flex items-center justify-center shrink-0 text-white text-3xl font-bold">
-            {profile?.full_name?.[0] ?? profile?.username?.[0]?.toUpperCase() ?? "?"}
-          </div>
+      <main className="max-w-2xl mx-auto px-6 py-10 space-y-5">
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900">
-                {profile?.full_name ?? `@${profile?.username}`}
-              </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                <IconShield size={10} /> Verified by Tether
-              </span>
+        {/* Hero card */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-card">
+          <div className="flex items-start gap-5">
+            <div className="w-18 h-18 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-400 to-purple-600 flex items-center justify-center shrink-0 text-white text-2xl font-bold w-[72px] h-[72px]">
+              {initials}
             </div>
-            <p className="text-sm text-gray-500 mt-0.5">@{profile?.username}</p>
-            {profile?.bio && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{profile.bio}</p>}
-            {profile?.creator_stage && (
-              <span className="inline-block mt-2 text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 font-medium">
-                {stageLabels[profile.creator_stage] ?? profile.creator_stage}
-              </span>
-            )}
-
-            {/* Platform badges */}
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              {ytPlatform && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-700 text-xs font-medium border border-red-100">
-                  <IconYoutube size={11} /> YouTube
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-gray-900 leading-tight">
+                  {profile?.full_name ?? `@${profile?.username}`}
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">
+                  <IconShield size={9} /> Verified
                 </span>
+              </div>
+              <p className="text-sm text-gray-400 mt-0.5">@{profile?.username}</p>
+              {profile?.bio && (
+                <p className="text-sm text-gray-600 mt-2 leading-relaxed">{profile.bio}</p>
               )}
-              {igPlatform && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-                  style={{ background: "#fdf2f8", color: "#9d174d", borderColor: "#fbcfe8" }}>
-                  <IconInstagram size={11} /> Instagram
-                </span>
-              )}
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                {profile?.creator_stage && (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 font-medium border border-brand-100">
+                    {stageLabels[profile.creator_stage] ?? profile.creator_stage}
+                  </span>
+                )}
+                {ytPlatform && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-100">
+                    <IconYoutube size={10} /> YouTube
+                  </span>
+                )}
+                {igPlatform && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+                    style={{ background: "#fdf2f8", color: "#9d174d", borderColor: "#fbcfe8" }}>
+                    <IconInstagram size={10} /> Instagram
+                  </span>
+                )}
+              </div>
             </div>
+            <a href="/login"
+              className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors">
+              Join Tether
+            </a>
           </div>
-
-          <a href="/login" className="btn-primary text-sm shrink-0">
-            Join Tether
-          </a>
         </div>
 
         {/* Verified notice */}
-        <div className="mb-6 p-3.5 rounded-xl bg-green-50 border border-green-100 flex items-center gap-2.5 text-sm text-green-700">
-          <IconShield size={16} className="shrink-0" />
-          <span>All metrics on this page are <strong>pulled directly from platform APIs</strong> — not self-reported.</span>
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-green-50 border border-green-100">
+          <IconShield size={15} className="text-green-600 shrink-0" />
+          <p className="text-xs text-green-700">
+            All metrics are <strong>pulled directly from platform APIs</strong> — not self-reported.
+          </p>
         </div>
 
         {/* YouTube section */}
         {ytPlatform && (
-          <div className="card p-6 mb-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center">
-                  <IconYoutube size={20} className="text-white" />
+                <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center">
+                  <IconYoutube size={17} className="text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">{ytPlatform.platform_username}</p>
-                  {ytMeta?.handle && <p className="text-xs text-gray-500">{ytMeta.handle}</p>}
+                  <p className="text-sm font-bold text-gray-900">{ytPlatform.platform_username}</p>
+                  {ytMeta?.handle && <p className="text-xs text-gray-400">{ytMeta.handle}</p>}
                 </div>
               </div>
-              <a
-                href={`https://youtube.com/channel/${ytPlatform.platform_user_id}`}
+              <a href={`https://youtube.com/channel/${ytPlatform.platform_user_id}`}
                 target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <IconExternal size={12} /> View on YouTube
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                <IconExternal size={11} /> View
               </a>
             </div>
 
-            {/* Visible metrics grid */}
-            {(mv.subscribers || mv.total_views || mv.video_count || mv.avg_views) && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                {mv.subscribers && ytMeta?.subscribers !== undefined && (
-                  <MetricPill icon={IconUsers} label="Subscribers" value={fmt(ytMeta.subscribers)} />
-                )}
-                {mv.total_views && ytMeta?.totalViews !== undefined && (
-                  <MetricPill icon={IconEye} label="Total Views" value={fmt(ytMeta.totalViews)} />
-                )}
-                {mv.video_count && ytMeta?.videoCount !== undefined && (
-                  <MetricPill icon={IconVideo} label="Videos" value={fmt(ytMeta.videoCount)} />
-                )}
-                {mv.avg_views && ytMeta?.subscribers !== undefined && ytMeta?.totalViews !== undefined && ytMeta?.videoCount !== undefined && (
-                  <MetricPill icon={IconTrendUp} label="Avg Views/Video"
-                    value={fmt(Math.round((ytMeta.totalViews ?? 0) / Math.max(ytMeta.videoCount ?? 1, 1)))} />
-                )}
-              </div>
-            )}
+            <div className="p-5">
+              {/* Metric cards */}
+              {(mv.subscribers || mv.total_views || mv.video_count || mv.avg_views) ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {mv.subscribers && ytMeta?.subscribers !== undefined && (
+                    <MetricCard icon={IconUsers} label="Subscribers" value={fmt(ytMeta.subscribers)} bg="bg-[#e8f5f0]" iconColor="text-emerald-600" />
+                  )}
+                  {mv.total_views && ytMeta?.totalViews !== undefined && (
+                    <MetricCard icon={IconEye} label="Total Views" value={fmt(ytMeta.totalViews)} bg="bg-[#fef9ec]" iconColor="text-amber-500" />
+                  )}
+                  {mv.video_count && ytMeta?.videoCount !== undefined && (
+                    <MetricCard icon={IconVideo} label="Videos" value={fmt(ytMeta.videoCount)} bg="bg-[#f0f0fe]" iconColor="text-brand-600" />
+                  )}
+                  {mv.avg_views && avgViews !== null && (
+                    <MetricCard icon={IconTrendUp} label="Avg Views" value={fmt(avgViews)} bg="bg-[#fdf0f3]" iconColor="text-rose-500" />
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-center mb-4">
+                  <p className="text-xs text-gray-400">Creator has chosen not to share detailed metrics publicly.</p>
+                </div>
+              )}
 
-            {/* No metrics shown notice */}
-            {!mv.subscribers && !mv.total_views && !mv.video_count && !mv.avg_views && (
-              <div className="p-4 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-center">
-                <p className="text-sm text-gray-400">Creator has chosen not to share detailed metrics publicly.</p>
-              </div>
-            )}
+              {/* Chart placeholder — public profile shows chart only if creator allows */}
+              {mv.view_chart && (
+                <div className="text-xs text-gray-400 mb-2 font-medium">Channel performance</div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Instagram section */}
         {igPlatform && (
-          <div className="card p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)" }}>
-                  <IconInstagram size={20} className="text-white" />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
+                  <IconInstagram size={17} className="text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">{igPlatform.platform_username}</p>
-                  {igMeta?.username && <p className="text-xs text-gray-500">@{igMeta.username}</p>}
+                  <p className="text-sm font-bold text-gray-900">{igPlatform.platform_username}</p>
+                  {igMeta?.username && <p className="text-xs text-gray-400">@{igMeta.username}</p>}
                 </div>
               </div>
               {igMeta?.username && (
-                <a href={`https://instagram.com/${igMeta.username}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors">
-                  <IconExternal size={12} /> View on Instagram
+                <a href={`https://instagram.com/${igMeta.username}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                  <IconExternal size={11} /> View
                 </a>
               )}
             </div>
-
-            {mv.subscribers && igMeta?.followers_count !== undefined && (
-              <div className="grid grid-cols-2 gap-3">
-                <MetricPill icon={IconUsers} label="Followers" value={fmt(igMeta.followers_count)} />
-                {igMeta.media_count !== undefined && (
-                  <MetricPill icon={IconVideo} label="Posts" value={fmt(igMeta.media_count)} />
-                )}
-              </div>
-            )}
+            <div className="p-5">
+              {mv.subscribers && igMeta?.followers_count !== undefined ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <MetricCard icon={IconUsers} label="Followers" value={fmt(igMeta.followers_count)} bg="bg-[#fdf0f3]" iconColor="text-pink-500" />
+                  {igMeta.media_count !== undefined && (
+                    <MetricCard icon={IconVideo} label="Posts" value={fmt(igMeta.media_count)} bg="bg-[#fef9ec]" iconColor="text-amber-500" />
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 text-center py-2">Metrics hidden by creator.</p>
+              )}
+            </div>
           </div>
         )}
 
-        {!hasAnyPlatform && (
-          <div className="card p-6 mb-6 border-dashed border-2 border-gray-200 text-center">
-            <p className="text-gray-400 text-sm">No platforms connected yet.</p>
+        {/* No platforms */}
+        {!ytPlatform && !igPlatform && (
+          <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-200 text-center">
+            <p className="text-sm text-gray-400">No platforms connected yet.</p>
           </div>
         )}
 
         {/* About */}
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">About this creator</h2>
-          <div>
-            {profile?.creator_stage && (
-              <BadgeRow label="Creator stage" value={stageLabels[profile.creator_stage] ?? profile.creator_stage} />
-            )}
-            {profile?.aspiration && (
-              <BadgeRow label="Aspiration" value={profile.aspiration.replace(/_/g, " ")} />
-            )}
-            {ytPlatform && <BadgeRow label="Verified on" value="YouTube" />}
-            {igPlatform && <BadgeRow label="Verified on" value="Instagram" />}
-            <BadgeRow label="Profile powered by" value="Tether — verified creator metrics" />
+        {(profile?.creator_stage || profile?.aspiration || profile?.website) && (
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">About</h2>
+            <dl className="space-y-2">
+              {profile?.creator_stage && (
+                <div className="flex items-center justify-between text-sm">
+                  <dt className="text-gray-400">Creator stage</dt>
+                  <dd className="font-medium text-gray-800">{stageLabels[profile.creator_stage] ?? profile.creator_stage}</dd>
+                </div>
+              )}
+              {profile?.aspiration && (
+                <div className="flex items-center justify-between text-sm">
+                  <dt className="text-gray-400">Aspiration</dt>
+                  <dd className="font-medium text-gray-800">{profile.aspiration.replace(/_/g, " ")}</dd>
+                </div>
+              )}
+              {profile?.website && (
+                <div className="flex items-center justify-between text-sm">
+                  <dt className="text-gray-400">Website</dt>
+                  <dd>
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer"
+                      className="font-medium text-brand-600 hover:underline flex items-center gap-1">
+                      {profile.website.replace(/^https?:\/\//, "")} <IconExternal size={10} />
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
           </div>
-        </div>
+        )}
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
-            This profile is powered by{" "}
-            <a href="/" className="text-brand-600 font-medium">Tether</a>{" "}
-            — the verified creator intelligence platform.
+        {/* Footer CTA */}
+        <div className="text-center pb-4">
+          <p className="text-xs text-gray-400 mb-3">
+            Powered by <a href="/" className="text-brand-600 font-medium hover:underline">Tether</a> — verified creator metrics
           </p>
-          <a href="/signup" className="inline-block mt-3 btn-primary text-sm">
+          <a href="/signup"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors">
             Create your verified profile →
           </a>
         </div>
+
       </main>
     </div>
   );

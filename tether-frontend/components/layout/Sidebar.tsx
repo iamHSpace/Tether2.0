@@ -4,14 +4,12 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
-  IconDashboard, IconBarChart, IconLink,
+  IconDashboard,
   IconSettings, IconLogout, IconUser
 } from "@/components/ui/Icons";
 
 const NAV = [
-  { href: "/dashboard",   label: "Dashboard",   Icon: IconDashboard },
-  { href: "/analytics",   label: "Analytics",   Icon: IconBarChart  },
-  { href: "/connections", label: "Connections", Icon: IconLink      },
+  { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
 ];
 
 const BOTTOM_NAV = [
