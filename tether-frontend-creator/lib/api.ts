@@ -126,6 +126,7 @@ export interface Profile {
   aspiration: string | null;
   platform_reason: string | null;
   metric_visibility: MetricVisibility | null;
+  category: string | null;
 }
 
 export interface ProfileResponse {

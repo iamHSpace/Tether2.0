@@ -339,6 +339,11 @@ export default function CreatorPublicProfile() {
               <p className="text-sm text-gray-400 mt-0.5">@{profile.username}</p>
               {profile.bio && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{profile.bio}</p>}
               <div className="flex items-center gap-2 mt-3 flex-wrap">
+                {profile.category && (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-medium border border-purple-100">
+                    {profile.category}
+                  </span>
+                )}
                 {profile.creator_stage && (
                   <span className="text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 font-medium border border-brand-100">
                     {stageLabels[profile.creator_stage] ?? profile.creator_stage}

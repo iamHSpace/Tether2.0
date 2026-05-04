@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [saved, setSaved]   = useState<EnrichedCreator[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -80,10 +81,14 @@ export default function DashboardPage() {
     await api.saved.unsave(username).catch(() => {});
   }
 
-  const filtered = saved.filter(c =>
-    !search || c.creator_username.includes(search.toLowerCase()) ||
-    (c.profile?.full_name ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const allCategories = Array.from(new Set(saved.map(c => c.profile?.category).filter(Boolean))) as string[];
+
+  const filtered = saved.filter(c => {
+    if (search && !c.creator_username.includes(search.toLowerCase()) &&
+        !(c.profile?.full_name ?? "").toLowerCase().includes(search.toLowerCase())) return false;
+    if (categoryFilter && c.profile?.category !== categoryFilter) return false;
+    return true;
+  });
 
   return (
     <div className="flex h-screen bg-[#f5f0e8] overflow-hidden">
@@ -95,13 +100,27 @@ export default function DashboardPage() {
             <h1 className="text-base font-bold text-gray-900">Saved Creators</h1>
             <p className="text-xs text-gray-400 mt-0.5">Your shortlist of verified creators</p>
           </div>
-          <div className="relative w-64">
-            <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search saved creators…"
-              className="input pl-9 py-2 text-xs"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-56">
+              <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search saved creators…"
+                className="input pl-9 py-2 text-xs"
+              />
+            </div>
+            {allCategories.length > 0 && (
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="input py-2 text-xs w-44"
+              >
+                <option value="">All categories</option>
+                {allCategories.sort().map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
           </div>
         </header>
 
@@ -155,9 +174,14 @@ function CreatorCard({ creator: c, onUnsave }: { creator: EnrichedCreator; onUns
             <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-24" /></div>
           ) : (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-bold text-gray-900">{c.profile?.full_name ?? `@${c.creator_username}`}</p>
                 {c.ytPlatform && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-100"><IconYoutube size={9} /> YouTube</span>}
+                {c.profile?.category && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                    {c.profile.category}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-400">@{c.creator_username}</p>
               {c.profile?.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-1">{c.profile.bio}</p>}

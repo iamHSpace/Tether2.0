@@ -85,6 +85,7 @@ export interface Profile {
   aspiration: string | null;
   metric_visibility: Record<string, boolean> | null;
   user_type: "creator" | "business" | null;
+  category: string | null;
 }
 
 export interface VideoSummary {

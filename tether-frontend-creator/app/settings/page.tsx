@@ -6,6 +6,14 @@ import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck } from "@/components/ui/Icons";
 
+const CREATOR_CATEGORIES = [
+  "Gaming", "Tech & Science", "Education", "Lifestyle", "Vlog",
+  "Beauty & Fashion", "Food & Cooking", "Travel", "Fitness & Health",
+  "Business & Finance", "Comedy & Entertainment", "Music",
+  "Art & Design", "Sports", "Kids & Family", "DIY & How-to",
+  "News & Politics", "Other",
+] as const;
+
 interface SettingsProfile {
   username: string;
   full_name: string;
@@ -13,6 +21,7 @@ interface SettingsProfile {
   website: string;
   avatar_url: string;
   email: string;
+  category: string;
 }
 
 type Tab = "profile" | "connections" | "notifications" | "account";
@@ -28,7 +37,7 @@ type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 
 export default function SettingsPage() {
   const [tab, setTab]         = useState<Tab>("profile");
-  const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "" });
+  const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "", category: "" });
   const [savedUsername, setSavedUsername] = useState("");   // username already in DB
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
@@ -53,6 +62,7 @@ export default function SettingsPage() {
           website:    prof.website    ?? "",
           avatar_url: prof.avatar_url ?? "",
           email:      email ?? user.email ?? "",
+          category:   prof.category   ?? "",
         });
         setSavedUsername(u);
         if (u) setUsernameStatus("available");
@@ -103,6 +113,7 @@ export default function SettingsPage() {
         full_name: profile.full_name.trim() || null,
         bio:       profile.bio.trim() || null,
         website:   profile.website.trim() || null,
+        category:  profile.category || null,
       });
       setSavedUsername(profile.username.trim());
       setSaved(true);
@@ -244,6 +255,21 @@ export default function SettingsPage() {
                   maxLength={200}
                 />
                 <p className="text-xs text-gray-400 mt-1 text-right">{profile.bio.length}/200</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Channel category</label>
+                <select
+                  className="input"
+                  value={profile.category}
+                  onChange={e => set("category", e.target.value)}
+                >
+                  <option value="">— Select a category —</option>
+                  {CREATOR_CATEGORIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Helps brands find creators in the right niche.</p>
               </div>
 
               <div>
