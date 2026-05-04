@@ -3,10 +3,11 @@
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  IconDashboard, IconBookmark, IconSettings, IconLogout, IconUser, IconBriefcase,
+  IconDashboard, IconBookmark, IconSettings, IconLogout, IconUser, IconBriefcase, IconCompass,
 } from "@/components/ui/Icons";
 
 const NAV = [
+  { href: "/discover",  label: "Discover",       Icon: IconCompass  },
   { href: "/dashboard", label: "Saved Creators", Icon: IconBookmark },
 ];
 const BOTTOM_NAV = [

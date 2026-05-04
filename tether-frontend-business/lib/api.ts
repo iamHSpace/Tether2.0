@@ -125,6 +125,23 @@ export interface SavedCreator {
   saved_at: string;
 }
 
+export interface DiscoverCreator {
+  id: string;
+  username: string;
+  full_name: string | null;
+  bio: string | null;
+  category: string | null;
+  creator_stage: string | null;
+  subscribers: number;
+  total_views: number;
+  video_count: number;
+}
+
+export interface DiscoverResponse {
+  creators: DiscoverCreator[];
+  total: number;
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -144,5 +161,16 @@ export const api = {
       post<{ saved: boolean }>("/api/business/saved-creators", { creator_username }),
     unsave: (creator_username: string) =>
       del<{ saved: boolean }>("/api/business/saved-creators", { creator_username }),
+  },
+
+  discover: {
+    search: (params: { q?: string; category?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q)        qs.set("q",        params.q);
+      if (params.category) qs.set("category", params.category);
+      if (params.limit)    qs.set("limit",    String(params.limit));
+      if (params.offset)   qs.set("offset",   String(params.offset));
+      return get<DiscoverResponse>(`/api/business/discover?${qs}`);
+    },
   },
 };
