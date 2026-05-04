@@ -135,6 +135,7 @@ export interface DiscoverCreator {
   subscribers: number;
   total_views: number;
   video_count: number;
+  avg_views: number;
 }
 
 export interface DiscoverResponse {
@@ -164,12 +165,27 @@ export const api = {
   },
 
   discover: {
-    search: (params: { q?: string; category?: string; limit?: number; offset?: number } = {}) => {
+    search: (params: {
+      q?: string; category?: string; creator_stage?: string; sort_by?: string;
+      min_subs?: number; max_subs?: number;
+      min_avg_views?: number; max_avg_views?: number;
+      min_videos?: number; max_videos?: number;
+      limit?: number; offset?: number;
+    } = {}) => {
       const qs = new URLSearchParams();
-      if (params.q)        qs.set("q",        params.q);
-      if (params.category) qs.set("category", params.category);
-      if (params.limit)    qs.set("limit",    String(params.limit));
-      if (params.offset)   qs.set("offset",   String(params.offset));
+      const add = (k: string, v: string | number | undefined) => { if (v !== undefined && v !== "") qs.set(k, String(v)); };
+      add("q",             params.q);
+      add("category",      params.category);
+      add("creator_stage", params.creator_stage);
+      add("sort_by",       params.sort_by);
+      add("min_subs",      params.min_subs);
+      add("max_subs",      params.max_subs);
+      add("min_avg_views", params.min_avg_views);
+      add("max_avg_views", params.max_avg_views);
+      add("min_videos",    params.min_videos);
+      add("max_videos",    params.max_videos);
+      add("limit",         params.limit);
+      add("offset",        params.offset);
       return get<DiscoverResponse>(`/api/business/discover?${qs}`);
     },
   },
