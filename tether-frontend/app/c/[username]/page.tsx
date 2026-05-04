@@ -9,16 +9,6 @@ import {
   IconUsers, IconEye, IconVideo, IconTrendUp, IconAlert,
 } from "@/components/ui/Icons";
 
-// ── Instagram icon ─────────────────────────────────────────────────────────────
-
-function IconInstagram({ size = 20, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-    </svg>
-  );
-}
-
 // ── Bezier area chart ──────────────────────────────────────────────────────────
 
 function AreaChart({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
@@ -189,13 +179,9 @@ export default function CreatorPublicProfile() {
   const mv: MetricVisibility = (profile?.metric_visibility as MetricVisibility) ?? DEFAULT_METRIC_VISIBILITY;
 
   const ytPlatform = platforms.find(p => p.platform === "youtube") ?? null;
-  const igPlatform = platforms.find(p => p.platform === "instagram") ?? null;
   const ytMeta = ytPlatform?.metadata as {
     handle?: string; thumbnail?: string;
     subscribers?: number; totalViews?: number; videoCount?: number;
-  } | undefined;
-  const igMeta = igPlatform?.metadata as {
-    username?: string; followers_count?: number; media_count?: number;
   } | undefined;
 
   const avgViews = ytMeta?.totalViews && ytMeta?.videoCount
@@ -255,12 +241,6 @@ export default function CreatorPublicProfile() {
                 {ytPlatform && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-100">
                     <IconYoutube size={10} /> YouTube
-                  </span>
-                )}
-                {igPlatform && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
-                    style={{ background: "#fdf2f8", color: "#9d174d", borderColor: "#fbcfe8" }}>
-                    <IconInstagram size={10} /> Instagram
                   </span>
                 )}
               </div>
@@ -331,44 +311,8 @@ export default function CreatorPublicProfile() {
           </div>
         )}
 
-        {/* Instagram section */}
-        {igPlatform && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
-                  <IconInstagram size={17} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">{igPlatform.platform_username}</p>
-                  {igMeta?.username && <p className="text-xs text-gray-400">@{igMeta.username}</p>}
-                </div>
-              </div>
-              {igMeta?.username && (
-                <a href={`https://instagram.com/${igMeta.username}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-                  <IconExternal size={11} /> View
-                </a>
-              )}
-            </div>
-            <div className="p-5">
-              {mv.subscribers && igMeta?.followers_count !== undefined ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <MetricCard icon={IconUsers} label="Followers" value={fmt(igMeta.followers_count)} bg="bg-[#fdf0f3]" iconColor="text-pink-500" />
-                  {igMeta.media_count !== undefined && (
-                    <MetricCard icon={IconVideo} label="Posts" value={fmt(igMeta.media_count)} bg="bg-[#fef9ec]" iconColor="text-amber-500" />
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 text-center py-2">Metrics hidden by creator.</p>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* No platforms */}
-        {!ytPlatform && !igPlatform && (
+        {!ytPlatform && (
           <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-200 text-center">
             <p className="text-sm text-gray-400">No platforms connected yet.</p>
           </div>
