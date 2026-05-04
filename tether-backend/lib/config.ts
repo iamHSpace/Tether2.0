@@ -61,8 +61,6 @@ export const youtube = {
   // Scopes — youtube.readonly covers channels, videos, playlists, search
   scopes:       "https://www.googleapis.com/auth/youtube.readonly",
 
-  // How many recent videos to fetch on the dashboard
-  maxRecentVideos: 5,
 } as const;
 
 // ─── Instagram / Facebook OAuth ───────────────────────────────────────────────

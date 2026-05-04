@@ -9,6 +9,10 @@ const ALLOWED_ORIGINS = new Set([
   process.env.FRONTEND_URL ?? "http://127.0.0.1:3001",
   "http://127.0.0.1:3001",
   "http://localhost:3001",
+  // Business portal
+  process.env.BUSINESS_FRONTEND_URL ?? "http://127.0.0.1:3002",
+  "http://127.0.0.1:3002",
+  "http://localhost:3002",
 ]);
 
 export async function middleware(request: NextRequest) {

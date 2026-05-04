@@ -30,14 +30,14 @@ export default function Sidebar({ email, username }: Props) {
     <aside className="w-60 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-gray-100">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
+        <a href="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           <span className="font-bold text-gray-900 tracking-tight">Tether</span>
-        </div>
+        </a>
       </div>
 
       {/* Nav */}

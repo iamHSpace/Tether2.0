@@ -42,13 +42,29 @@ export async function GET(
     .order("created_at", { ascending: false });
 
   if (platformError) {
-    // Non-fatal — return profile with empty platforms
     console.error("[creators/:username] platform_tokens error:", platformError.message);
+  }
+
+  // ── 3. Fetch latest metric snapshot per platform ──────────────────────────
+  const { data: snapshots } = await adminClient
+    .from("metric_snapshots")
+    .select("platform, data, captured_at")
+    .eq("user_id", profile.id)
+    .order("captured_at", { ascending: false })
+    .limit(10);
+
+  // Keep only the most recent snapshot per platform
+  const latestSnapshots: Record<string, { data: unknown; captured_at: string }> = {};
+  for (const snap of snapshots ?? []) {
+    if (!latestSnapshots[snap.platform]) {
+      latestSnapshots[snap.platform] = { data: snap.data, captured_at: snap.captured_at };
+    }
   }
 
   return NextResponse.json({
     profile,
     platforms: platforms ?? [],
+    snapshots: latestSnapshots,
   });
 }
 

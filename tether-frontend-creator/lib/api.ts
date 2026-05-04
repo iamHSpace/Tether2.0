@@ -143,9 +143,18 @@ export interface PlatformInfo {
   created_at: string;
 }
 
+export interface SnapshotData {
+  channel: {
+    id: string; name: string; handle: string; thumbnail: string;
+    subscribers: number; totalViews: number; videoCount: number;
+  };
+  videos: VideoSummary[];
+}
+
 export interface CreatorResponse {
   profile: Profile;
   platforms: PlatformInfo[];
+  snapshots: Record<string, { data: SnapshotData; captured_at: string }>;
 }
 
 // ── API surface ───────────────────────────────────────────────────────────────

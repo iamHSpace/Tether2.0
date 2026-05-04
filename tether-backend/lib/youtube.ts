@@ -141,6 +141,10 @@ export async function refreshAccessToken(
 
 // ─── Data API v3 ──────────────────────────────────────────────────────────────
 
+function toHttps(url: string): string {
+  return url ? url.replace(/^http:\/\//, "https://") : url;
+}
+
 export interface ChannelStats {
   id:                  string;
   name:                string;
@@ -170,7 +174,7 @@ export async function getChannelStats(accessToken: string): Promise<ChannelStats
     id:                ch.id,
     name:              ch.snippet.title,
     handle:            ch.snippet.customUrl ?? "",
-    thumbnail:         ch.snippet.thumbnails?.default?.url ?? "",
+    thumbnail:         toHttps(ch.snippet.thumbnails?.default?.url ?? ""),
     subscribers:       parseInt(ch.statistics.subscriberCount ?? "0", 10),
     totalViews:        parseInt(ch.statistics.viewCount ?? "0", 10),
     videoCount:        parseInt(ch.statistics.videoCount ?? "0", 10),
@@ -191,46 +195,64 @@ export interface VideoSummary {
 export async function getRecentVideos(
   accessToken: string,
   uploadsPlaylistId: string,
-  maxResults = cfg.maxRecentVideos
 ): Promise<VideoSummary[]> {
-  // Step 1: get video IDs from the uploads playlist
-  const plRes = await fetch(
-    `${cfg.apiBase}/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${maxResults}`,
-    { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }
-  );
-  const plData = await plRes.json();
-  if (!plRes.ok) throw new Error(plData.error?.message ?? "Playlist fetch failed");
+  const headers = { Authorization: `Bearer ${accessToken}` };
 
-  const videoIds: string[] = (plData.items ?? []).map(
-    (item: { contentDetails: { videoId: string } }) => item.contentDetails.videoId
-  );
+  // Step 1: paginate through all video IDs in the uploads playlist (max 50 per page)
+  const videoIds: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const url = new URL(`${cfg.apiBase}/playlistItems`);
+    url.searchParams.set("part", "contentDetails");
+    url.searchParams.set("playlistId", uploadsPlaylistId);
+    url.searchParams.set("maxResults", "50");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url.toString(), { headers, cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message ?? "Playlist fetch failed");
+
+    for (const item of (data.items ?? [])) {
+      videoIds.push(item.contentDetails.videoId);
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
   if (!videoIds.length) return [];
 
-  // Step 2: get snippet + statistics for those IDs in one request
-  const vRes = await fetch(
-    `${cfg.apiBase}/videos?part=snippet,statistics&id=${videoIds.join(",")}`,
-    { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }
-  );
-  const vData = await vRes.json();
-  if (!vRes.ok) throw new Error(vData.error?.message ?? "Videos fetch failed");
+  // Step 2: fetch snippet, statistics, and status in batches of 50 (API limit per request)
+  type RawVideo = {
+    id: string;
+    snippet: { title: string; thumbnails: { medium: { url: string } }; publishedAt: string };
+    statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
+    status: { privacyStatus: string };
+  };
 
-  return (vData.items ?? []).map(
-    (v: {
-      id: string;
-      snippet: {
-        title: string;
-        thumbnails: { medium: { url: string } };
-        publishedAt: string;
-      };
-      statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
-    }) => ({
-      id:          v.id,
-      title:       v.snippet.title,
-      thumbnail:   v.snippet.thumbnails?.medium?.url ?? "",
-      publishedAt: v.snippet.publishedAt,
-      views:       parseInt(v.statistics.viewCount    ?? "0", 10),
-      likes:       parseInt(v.statistics.likeCount    ?? "0", 10),
-      comments:    parseInt(v.statistics.commentCount ?? "0", 10),
-    })
-  );
+  const results: VideoSummary[] = [];
+
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const chunk = videoIds.slice(i, i + 50);
+    const res = await fetch(
+      `${cfg.apiBase}/videos?part=snippet,statistics,status&id=${chunk.join(",")}`,
+      { headers, cache: "no-store" }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message ?? "Videos fetch failed");
+
+    for (const v of (data.items ?? []) as RawVideo[]) {
+      if (v.status.privacyStatus !== "public") continue;
+      results.push({
+        id:          v.id,
+        title:       v.snippet.title ?? "",
+        thumbnail:   toHttps(v.snippet.thumbnails?.medium?.url ?? ""),
+        publishedAt: v.snippet.publishedAt ?? "",
+        views:       parseInt(v.statistics.viewCount    ?? "0", 10),
+        likes:       parseInt(v.statistics.likeCount    ?? "0", 10),
+        comments:    parseInt(v.statistics.commentCount ?? "0", 10),
+      });
+    }
+  }
+
+  return results;
 }
