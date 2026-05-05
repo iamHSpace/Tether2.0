@@ -43,27 +43,34 @@ export async function generateMetadata(
   const name = profile.full_name ?? `@${profile.username}`;
   const ytChannel = snapshots["youtube"]?.data?.channel;
   const subCount = ytChannel?.subscribers;
-  const richDescription = profile.bio
-    ?? (subCount
-      ? `Verified YouTube creator with ${fmt(subCount)} subscribers. See real metrics on Tether.`
-      : `${name}'s verified creator profile on Tether.`);
+  const category = profile.category ? `${profile.category} creator` : "creator";
+
+  // Title: aim for 50-60 chars — include category and platform context
+  const ogTitle = `${name} — Verified ${category} profile on Tether`;
+
+  // Description: aim for 110-160 chars — include metrics and CTA
+  const descParts: string[] = [];
+  if (subCount) descParts.push(`${fmt(subCount)} YouTube subscribers`);
+  if (profile.bio) descParts.push(profile.bio);
+  descParts.push("All metrics verified directly from YouTube's API — no self-reported numbers.");
+  const richDescription = descParts.join(". ").slice(0, 160);
 
   const pageUrl = `https://tether-frontend.vercel.app/c/${username}`;
 
   return {
-    title: name,
+    title: ogTitle,
     description: richDescription,
     alternates: { canonical: pageUrl },
     openGraph: {
       type: "profile",
       siteName: "Tether",
-      title: `${name} — Tether`,
+      title: ogTitle,
       description: richDescription,
       url: pageUrl,
     },
     twitter: {
-      card: "summary",
-      title: `${name} — Tether`,
+      card: "summary_large_image",
+      title: ogTitle,
       description: richDescription,
     },
   };
