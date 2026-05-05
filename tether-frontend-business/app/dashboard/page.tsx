@@ -50,24 +50,23 @@ export default function DashboardPage() {
       setSaved(enriched);
       setPageLoading(false);
 
-      // Enrich each saved creator with their public profile data
-      const enriched2 = await Promise.all(
-        list.map(async (s): Promise<EnrichedCreator> => {
-          try {
-            const data = await api.creators.get(s.creator_username);
-            const ytSnap = data.snapshots["youtube"];
-            return {
-              ...s,
-              profile: data.profile,
-              ytChannel: ytSnap?.data?.channel,
-              ytPlatform: data.platforms.find(p => p.platform === "youtube"),
-              loading: false,
-            };
-          } catch (err) {
-            return { ...s, loading: false, error: err instanceof Error ? err.message : "Failed to load" };
-          }
-        })
-      );
+      if (!list.length) return;
+
+      // Fetch all saved creator data in one batch request (3 DB queries total)
+      const { creators: batch } = await api.creators.getBatch(list.map(s => s.creator_username));
+
+      const enriched2: EnrichedCreator[] = list.map(s => {
+        const data = batch[s.creator_username];
+        if (!data) return { ...s, loading: false, error: "Not found" };
+        const ytSnap = data.snapshots["youtube"];
+        return {
+          ...s,
+          profile: data.profile,
+          ytChannel: ytSnap?.data?.channel,
+          ytPlatform: data.platforms.find(p => p.platform === "youtube"),
+          loading: false,
+        };
+      });
       setSaved(enriched2);
     } catch {
       setPageLoading(false);

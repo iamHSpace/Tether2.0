@@ -45,27 +45,18 @@ export async function GET(
     console.error("[creators/:username] platform_tokens error:", platformError.message);
   }
 
-  // ── 3. Fetch latest metric snapshot per platform ──────────────────────────
-  const { data: snapshots } = await adminClient
-    .from("metric_snapshots")
-    .select("platform, data, captured_at")
-    .eq("user_id", profile.id)
-    .order("captured_at", { ascending: false })
-    .limit(10);
+  // ── 3. Fetch latest metric snapshot per platform (DISTINCT ON via RPC) ───────
+  const { data: snapshots } = await adminClient.rpc("get_latest_snapshots", { p_user_id: profile.id });
 
-  // Keep only the most recent snapshot per platform
   const latestSnapshots: Record<string, { data: unknown; captured_at: string }> = {};
   for (const snap of snapshots ?? []) {
-    if (!latestSnapshots[snap.platform]) {
-      latestSnapshots[snap.platform] = { data: snap.data, captured_at: snap.captured_at };
-    }
+    latestSnapshots[snap.platform] = { data: snap.data, captured_at: snap.captured_at };
   }
 
-  return NextResponse.json({
-    profile,
-    platforms: platforms ?? [],
-    snapshots: latestSnapshots,
-  });
+  return NextResponse.json(
+    { profile, platforms: platforms ?? [], snapshots: latestSnapshots },
+    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60" } }
+  );
 }
 
 export async function OPTIONS() {

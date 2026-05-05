@@ -242,22 +242,26 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = "/login"; return; }
 
-    try {
-      const { profile: prof, email } = await api.profile.get();
+    const [profileResult, ytResult] = await Promise.allSettled([
+      api.profile.get(),
+      api.youtube.stats(),
+    ]);
+
+    if (profileResult.status === "fulfilled") {
+      const { profile: prof, email } = profileResult.value;
       const mv = prof.metric_visibility ?? DEFAULT_METRIC_VISIBILITY;
       setProfile({ username: prof.username, email: email ?? user.email ?? "", metricVisibility: mv });
       setMetricVisibility(mv);
-    } catch {
+    } else {
       setProfile({ username: null, email: user.email ?? "", metricVisibility: DEFAULT_METRIC_VISIBILITY });
     }
 
-    try {
-      const data = await api.youtube.stats();
-      setYtData(data);
+    if (ytResult.status === "fulfilled") {
+      setYtData(ytResult.value);
       setYtConnected(true);
       setYtError(null);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } else {
+      const msg = ytResult.reason instanceof Error ? ytResult.reason.message : String(ytResult.reason);
       setYtConnected(msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("no youtube") ? false : true);
       setYtError(msg);
     }

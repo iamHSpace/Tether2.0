@@ -64,7 +64,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 
 /** Unauthenticated GET (public endpoints) */
 async function publicGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BACKEND}${path}`, { cache: "no-store" });
+  const res = await fetch(`${BACKEND}${path}`, { next: { revalidate: 300 } } as RequestInit);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);

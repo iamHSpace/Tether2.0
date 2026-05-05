@@ -1,15 +1,56 @@
-"use client";
-
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { api, Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData } from "@/lib/api";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { fmt, timeAgo } from "@/lib/utils";
+import { Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData } from "@/lib/api";
 import {
-  IconYoutube, IconExternal, IconShield, IconShare, IconCheck,
-  IconUsers, IconEye, IconVideo, IconTrendUp, IconAlert, IconRefresh,
+  IconYoutube, IconExternal, IconShield,
+  IconUsers, IconEye, IconVideo, IconTrendUp,
 } from "@/components/ui/Icons";
+import { ShareButton } from "./_components/ShareButton";
+import { VideoList } from "./_components/VideoList";
 
-// ── Bezier area chart ──────────────────────────────────────────────────────────
+export const revalidate = 300;
+
+// ── Server-side data fetch ─────────────────────────────────────────────────────
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
+
+interface CreatorData {
+  profile: Profile;
+  platforms: PlatformInfo[];
+  snapshots: Record<string, { data: SnapshotData; captured_at: string }>;
+}
+
+async function getCreator(username: string): Promise<CreatorData | null> {
+  const res = await fetch(`${BACKEND}/api/creators/${encodeURIComponent(username)}`, {
+    next: { revalidate: 300 },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Backend ${res.status}`);
+  return res.json();
+}
+
+// ── SEO metadata ───────────────────────────────────────────────────────────────
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ username: string }> }
+): Promise<Metadata> {
+  const { username } = await params;
+  const data = await getCreator(username).catch(() => null);
+  if (!data) return { title: "Creator not found — Tether" };
+  const { profile } = data;
+  const name = profile.full_name ?? `@${profile.username}`;
+  return {
+    title: `${name} — Tether`,
+    description: profile.bio ?? `${name}'s verified creator profile on Tether.`,
+    openGraph: {
+      title: `${name} — Tether`,
+      description: profile.bio ?? `Verified creator profile on Tether.`,
+    },
+  };
+}
+
+// ── Bezier area chart (pure SVG, no interactivity) ────────────────────────────
 
 function AreaChart({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
   if (data.length < 2) return null;
@@ -36,8 +77,6 @@ function AreaChart({ data, color, gradientId }: { data: number[]; color: string;
   );
 }
 
-// ── Bar chart ──────────────────────────────────────────────────────────────────
-
 function BarChart({ data, color = "#7c3aed" }: { data: { label: string; value: number; sublabel?: string }[]; color?: string }) {
   if (!data.length) return null;
   const max = Math.max(...data.map(d => d.value)) || 1;
@@ -63,8 +102,6 @@ function BarChart({ data, color = "#7c3aed" }: { data: { label: string; value: n
   );
 }
 
-// ── Metric card ────────────────────────────────────────────────────────────────
-
 function MetricCard({ icon: Icon, label, value, sub, bg, iconColor }: {
   icon: React.ElementType; label: string; value: string; sub?: string; bg: string; iconColor: string;
 }) {
@@ -80,8 +117,6 @@ function MetricCard({ icon: Icon, label, value, sub, bg, iconColor }: {
   );
 }
 
-// ── Insight card ───────────────────────────────────────────────────────────────
-
 function InsightCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white/60 rounded-xl p-3 border border-white/80">
@@ -92,45 +127,51 @@ function InsightCard({ label, value, sub }: { label: string; value: string; sub?
   );
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────────
-
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse bg-gray-200/80 rounded-xl ${className}`} />;
-}
-
-function LoadingSkeleton() {
-  return (
-    <div className="min-h-screen bg-[#f5f0e8]">
-      <nav className="bg-white/70 backdrop-blur-sm border-b border-white/80 px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
-          <span className="text-sm font-bold text-gray-800">Tether</span>
-        </div>
-      </nav>
-      <main className="max-w-3xl mx-auto px-6 py-10 space-y-4">
-        <div className="flex items-center gap-4">
-          <Skeleton className="w-20 h-20 rounded-2xl" />
-          <div className="space-y-2 flex-1">
-            <Skeleton className="h-6 w-40 rounded-lg" />
-            <Skeleton className="h-4 w-24 rounded" />
-            <Skeleton className="h-3 w-64 rounded" />
-          </div>
-        </div>
-        <Skeleton className="h-12 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
-        <Skeleton className="h-32 rounded-2xl" />
-      </main>
-    </div>
-  );
-}
-
 // ── Analytics helpers ──────────────────────────────────────────────────────────
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function detectSeries(videos: SnapshotData["videos"]): { name: string; videos: SnapshotData["videos"] }[] {
+function computeAnalytics(ytData: SnapshotData) {
+  const videos = ytData.videos;
+  const ch = ytData.channel;
+  if (!videos.length) return null;
+
+  const sorted = [...videos].sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
+  const accountAgeDays = sorted.length > 1
+    ? Math.round((new Date(sorted[sorted.length - 1].publishedAt).getTime() - new Date(sorted[0].publishedAt).getTime()) / 86400000)
+    : 0;
+  const uploadVelocity = sorted.length > 1 ? accountAgeDays / (sorted.length - 1) : 0;
+  const knownViews = videos.reduce((s, v) => s + v.views, 0);
+  const ghostViews = Math.max(0, ch.totalViews - knownViews);
+  const subToViewRatio = ch.subscribers > 0 ? ch.totalViews / ch.subscribers : 0;
+
+  const withMetrics = videos.map(v => ({
+    ...v,
+    engagementScore: v.likes * 2 + v.comments,
+    interactionRate: v.views > 0 ? ((v.likes + v.comments) / v.views) * 100 : 0,
+    viewContrib: ch.totalViews > 0 ? (v.views / ch.totalViews) * 100 : 0,
+    commentDensity: v.views > 0 ? (v.comments / v.views) * 100 : 0,
+  }));
+
+  const weekdayBuckets = WEEKDAYS.map((day, i) => {
+    const dayVids = videos.filter(v => new Date(v.publishedAt).getDay() === i);
+    return { label: day, value: dayVids.length > 0 ? Math.round(dayVids.reduce((s, v) => s + v.views, 0) / dayVids.length) : 0, sublabel: `${dayVids.length}v` };
+  });
+
+  const monthCounts: Record<string, number> = {};
+  for (const v of videos) {
+    const key = new Date(v.publishedAt).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    monthCounts[key] = (monthCounts[key] || 0) + 1;
+  }
+  const monthlyUploads = Object.entries(monthCounts).map(([label, value]) => ({ label, value }));
+  const recentDecay = [...sorted].reverse().slice(0, 6).map(v => ({ value: v.views }));
+
+  const titleBuckets = [
+    { label: "Short", sublabel: "<30",   vids: withMetrics.filter(v => (v.title?.length ?? 0) < 30) },
+    { label: "Med",   sublabel: "30-60", vids: withMetrics.filter(v => (v.title?.length ?? 0) >= 30 && (v.title?.length ?? 0) <= 60) },
+    { label: "Long",  sublabel: ">60",   vids: withMetrics.filter(v => (v.title?.length ?? 0) > 60) },
+  ].map(b => ({ label: b.label, sublabel: b.sublabel, value: b.vids.length > 0 ? Math.round(b.vids.reduce((s, v) => s + v.engagementScore, 0) / b.vids.length) : 0 }));
+
   const groups: Record<string, SnapshotData["videos"]> = {};
   for (const v of videos) {
     if (!v.title) continue;
@@ -141,21 +182,16 @@ function detectSeries(videos: SnapshotData["videos"]): { name: string; videos: S
       groups[key].push(v);
     }
   }
-  return Object.entries(groups)
+  const series = Object.entries(groups)
     .filter(([, vids]) => vids.length >= 2)
     .map(([name, vids]) => ({ name: name.replace(/\b\w/g, c => c.toUpperCase()), videos: vids }))
     .sort((a, b) => b.videos.length - a.videos.length)
     .slice(0, 4);
+
+  return { accountAgeDays, uploadVelocity, ghostViews, subToViewRatio, withMetrics, weekdayBuckets, monthlyUploads, recentDecay, titleBuckets, series };
 }
 
-// ── Page state ─────────────────────────────────────────────────────────────────
-
-interface PageState {
-  profile: Profile | null;
-  platforms: PlatformInfo[];
-  snapshots: Record<string, { data: SnapshotData; captured_at: string }>;
-  notFound: boolean;
-}
+// ── Stage labels ───────────────────────────────────────────────────────────────
 
 const stageLabels: Record<string, string> = {
   just_starting: "Just starting out",
@@ -166,141 +202,23 @@ const stageLabels: Record<string, string> = {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function CreatorPublicProfile() {
-  const params = useParams<{ username: string }>();
-  const username = params?.username ?? "";
+export default async function CreatorPublicProfile(
+  { params }: { params: Promise<{ username: string }> }
+) {
+  const { username } = await params;
+  const data = await getCreator(username);
 
-  const [state, setState] = useState<PageState>({ profile: null, platforms: [], snapshots: {}, notFound: false });
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
-  const [copied, setCopied]         = useState(false);
-  const [showAllVideos, setShowAllVideos] = useState(false);
+  if (!data) notFound();
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const { profile, platforms, snapshots } = await api.creators.get(username);
-      setState({ profile, platforms, snapshots: snapshots ?? {}, notFound: false });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-        setState(s => ({ ...s, notFound: true }));
-      } else {
-        setError(msg);
-      }
-    }
-    setLoading(false);
-  }, [username]);
-
-  useEffect(() => { if (username) load(); }, [username, load]);
-
-  function share() {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-  }
-
-  // ── All hooks before any conditional returns ─────────────────────────────────
-
-  const { profile, platforms, snapshots } = state;
-  const mv: MetricVisibility = (profile?.metric_visibility as MetricVisibility) ?? DEFAULT_METRIC_VISIBILITY;
+  const { profile, platforms, snapshots } = data;
+  const mv: MetricVisibility = (profile.metric_visibility as MetricVisibility) ?? DEFAULT_METRIC_VISIBILITY;
   const ytPlatform = platforms.find(p => p.platform === "youtube") ?? null;
   const ytSnap = snapshots["youtube"];
   const ytData: SnapshotData | null = ytSnap?.data ?? null;
   const capturedAt = ytSnap?.captured_at ?? null;
-
-  const analytics = useMemo(() => {
-    if (!ytData || !ytData.videos.length) return null;
-    const videos = ytData.videos;
-    const ch = ytData.channel;
-    const sorted = [...videos].sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
-    const accountAgeDays = sorted.length > 1
-      ? Math.round((new Date(sorted[sorted.length - 1].publishedAt).getTime() - new Date(sorted[0].publishedAt).getTime()) / 86400000)
-      : 0;
-    const uploadVelocity = sorted.length > 1 ? accountAgeDays / (sorted.length - 1) : 0;
-    const knownViews = videos.reduce((s, v) => s + v.views, 0);
-    const ghostViews = Math.max(0, ch.totalViews - knownViews);
-    const subToViewRatio = ch.subscribers > 0 ? ch.totalViews / ch.subscribers : 0;
-    const withMetrics = videos.map(v => ({
-      ...v,
-      engagementScore: v.likes * 2 + v.comments,
-      interactionRate: v.views > 0 ? ((v.likes + v.comments) / v.views) * 100 : 0,
-      viewContrib: ch.totalViews > 0 ? (v.views / ch.totalViews) * 100 : 0,
-      commentDensity: v.views > 0 ? (v.comments / v.views) * 100 : 0,
-    }));
-    const weekdayBuckets = WEEKDAYS.map((day, i) => {
-      const dayVids = videos.filter(v => new Date(v.publishedAt).getDay() === i);
-      return { label: day, value: dayVids.length > 0 ? Math.round(dayVids.reduce((s, v) => s + v.views, 0) / dayVids.length) : 0, sublabel: `${dayVids.length}v` };
-    });
-    const monthCounts: Record<string, number> = {};
-    for (const v of videos) {
-      const key = new Date(v.publishedAt).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      monthCounts[key] = (monthCounts[key] || 0) + 1;
-    }
-    const monthlyUploads = Object.entries(monthCounts).map(([label, value]) => ({ label, value }));
-    const recentDecay = [...sorted].reverse().slice(0, 6).map(v => ({ label: "", value: v.views }));
-    const titleBuckets = [
-      { label: "Short", sublabel: "<30",   vids: withMetrics.filter(v => (v.title?.length ?? 0) < 30) },
-      { label: "Med",   sublabel: "30-60", vids: withMetrics.filter(v => (v.title?.length ?? 0) >= 30 && (v.title?.length ?? 0) <= 60) },
-      { label: "Long",  sublabel: ">60",   vids: withMetrics.filter(v => (v.title?.length ?? 0) > 60) },
-    ].map(b => ({ label: b.label, sublabel: b.sublabel, value: b.vids.length > 0 ? Math.round(b.vids.reduce((s, v) => s + v.engagementScore, 0) / b.vids.length) : 0 }));
-    const series = detectSeries(videos);
-    return { accountAgeDays, uploadVelocity, ghostViews, subToViewRatio, withMetrics, weekdayBuckets, monthlyUploads, recentDecay, titleBuckets, series };
-  }, [ytData]);
-
-  const visibleVideos = useMemo(
-    () => analytics ? (showAllVideos ? analytics.withMetrics : analytics.withMetrics.slice(0, 5)) : [],
-    [analytics, showAllVideos]
-  );
-
+  const analytics = ytData ? computeAnalytics(ytData) : null;
   const hasAnyVisible = mv.subscribers || mv.total_views || mv.video_count || mv.avg_views || mv.view_chart || mv.recent_videos;
-
-  const initials = (profile?.full_name?.[0] ?? profile?.username?.[0] ?? "?").toUpperCase();
-
-  // ── Conditional renders (after all hooks) ────────────────────────────────────
-
-  if (loading) return <LoadingSkeleton />;
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#f5f0e8] flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center">
-          <IconAlert size={24} className="text-red-400" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-gray-900 mb-1">Could not load profile</h1>
-          <p className="text-sm text-gray-400 max-w-xs">{error}</p>
-        </div>
-        <button onClick={load} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700">
-          Try again
-        </button>
-      </div>
-    );
-  }
-
-  if (state.notFound) {
-    return (
-      <div className="min-h-screen bg-[#f5f0e8] flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="text-5xl mb-2">🔍</div>
-        <h1 className="text-xl font-bold text-gray-900">Profile not found</h1>
-        <p className="text-sm text-gray-400">No creator with username <strong>@{username}</strong> was found.</p>
-        <a href="/" className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 mt-1">Go home</a>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-[#f5f0e8] flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center">
-          <IconAlert size={24} className="text-gray-300" />
-        </div>
-        <p className="text-sm text-gray-400">Nothing here yet.</p>
-        <a href="/" className="text-xs text-brand-600 hover:underline">Go home</a>
-      </div>
-    );
-  }
-
-  // ── Main render ──────────────────────────────────────────────────────────────
+  const initials = (profile.full_name?.[0] ?? profile.username?.[0] ?? "?").toUpperCase();
 
   return (
     <div className="min-h-screen bg-[#f5f0e8]">
@@ -313,11 +231,7 @@ export default function CreatorPublicProfile() {
             </div>
             <span className="text-sm font-bold text-gray-800">Tether</span>
           </a>
-          <button onClick={share}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 shadow-sm">
-            {copied ? <IconCheck size={12} className="text-green-500" /> : <IconShare size={12} />}
-            {copied ? "Copied!" : "Share"}
-          </button>
+          <ShareButton />
         </div>
       </nav>
 
@@ -422,7 +336,7 @@ export default function CreatorPublicProfile() {
               </div>
             )}
 
-            {/* ── Channel Overview cards ── */}
+            {/* Channel overview cards */}
             {(mv.subscribers || mv.total_views || mv.video_count || mv.avg_views) && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {mv.subscribers && (
@@ -442,7 +356,7 @@ export default function CreatorPublicProfile() {
               </div>
             )}
 
-            {/* ── Derived insights ── */}
+            {/* Derived insights */}
             {mv.avg_views && analytics && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <InsightCard label="Sub-to-View Ratio" value={`${Math.round(analytics.subToViewRatio * 10) / 10}×`} sub="views per subscriber" />
@@ -454,10 +368,9 @@ export default function CreatorPublicProfile() {
               </div>
             )}
 
-            {/* ── Charts ── */}
+            {/* Charts */}
             {mv.view_chart && analytics && ytData.videos.length >= 2 && (
               <div className="space-y-4">
-                {/* Views + Recency decay */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
                     <h3 className="text-sm font-bold text-gray-900 mb-1">Views by Video</h3>
@@ -473,7 +386,6 @@ export default function CreatorPublicProfile() {
                   </div>
                 </div>
 
-                {/* Publishing + Weekday + Title length */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
                     <h3 className="text-xs font-bold text-gray-900 mb-1">Publishing Momentum</h3>
@@ -492,7 +404,6 @@ export default function CreatorPublicProfile() {
                   </div>
                 </div>
 
-                {/* Series */}
                 {mv.video_count && analytics.series.length > 0 && (
                   <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
                     <h3 className="text-sm font-bold text-gray-900 mb-3">Content Series</h3>
@@ -517,50 +428,9 @@ export default function CreatorPublicProfile() {
               </div>
             )}
 
-            {/* ── Post Activity Table ── */}
+            {/* Post activity (interactive client island) */}
             {mv.recent_videos && analytics && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-                  <h3 className="text-sm font-bold text-gray-900">Post Activity</h3>
-                  <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">{ytData.videos.length} videos</span>
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {visibleVideos.map(v => (
-                    <div key={v.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
-                      {v.thumbnail ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={v.thumbnail} alt={v.title ?? "Video"} width={72} height={44}
-                          className="rounded-xl object-cover shrink-0 border border-gray-100" />
-                      ) : (
-                        <div className="w-[72px] h-11 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                          <IconVideo size={14} className="text-gray-300" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-800 line-clamp-1">{v.title || <span className="text-gray-300 italic">Untitled</span>}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{timeAgo(v.publishedAt)}</p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0 text-xs text-gray-400">
-                        <span className="flex items-center gap-1"><IconEye size={11} className="text-gray-300" />{fmt(v.views)}</span>
-                        <span className="hidden sm:flex items-center gap-1"><IconRefresh size={11} className="text-gray-300" />{v.engagementScore}</span>
-                        <span className="hidden sm:flex items-center gap-1">{v.interactionRate.toFixed(1)}%</span>
-                        <a href={`https://youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer"
-                          className="w-6 h-6 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100">
-                          <IconExternal size={10} className="text-gray-400" />
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {analytics.withMetrics.length > 5 && (
-                  <div className="px-5 py-3 border-t border-gray-50">
-                    <button onClick={() => setShowAllVideos(v => !v)}
-                      className="text-xs font-medium text-brand-600 hover:text-brand-700">
-                      {showAllVideos ? "Show less" : `Show all ${analytics.withMetrics.length} videos`}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <VideoList videos={analytics.withMetrics} totalCount={ytData.videos.length} />
             )}
           </div>
         )}

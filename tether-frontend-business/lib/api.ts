@@ -64,7 +64,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function publicGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BACKEND}${path}`, { cache: "no-store" });
+  const res = await fetch(`${BACKEND}${path}`, { next: { revalidate: 300 } } as RequestInit);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);
@@ -156,6 +156,8 @@ export const api = {
   creators: {
     get: (username: string) =>
       publicGet<CreatorResponse>(`/api/creators/${encodeURIComponent(username)}`),
+    getBatch: (usernames: string[]) =>
+      post<{ creators: Record<string, CreatorResponse> }>("/api/business/saved-creators/batch", { usernames }),
     logView: (username: string) =>
       post<{ counted: boolean }>(`/api/creators/${encodeURIComponent(username)}/view`, {}),
   },

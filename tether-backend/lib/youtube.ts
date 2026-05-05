@@ -217,11 +217,12 @@ export async function getRecentVideos(
       videoIds.push(item.contentDetails.videoId);
     }
     pageToken = data.nextPageToken;
-  } while (pageToken);
+  } while (pageToken && videoIds.length < 100);
 
   if (!videoIds.length) return [];
 
   // Step 2: fetch snippet, statistics, and status in batches of 50 (API limit per request)
+  // All chunks fire simultaneously via Promise.all instead of sequentially.
   type RawVideo = {
     id: string;
     snippet: { title: string; thumbnails: { medium: { url: string } }; publishedAt: string };
@@ -229,18 +230,26 @@ export async function getRecentVideos(
     status: { privacyStatus: string };
   };
 
-  const results: VideoSummary[] = [];
-
+  const chunks: string[][] = [];
   for (let i = 0; i < videoIds.length; i += 50) {
-    const chunk = videoIds.slice(i, i + 50);
-    const res = await fetch(
-      `${cfg.apiBase}/videos?part=snippet,statistics,status&id=${chunk.join(",")}`,
-      { headers, cache: "no-store" }
-    );
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message ?? "Videos fetch failed");
+    chunks.push(videoIds.slice(i, i + 50));
+  }
 
-    for (const v of (data.items ?? []) as RawVideo[]) {
+  const chunkResults = await Promise.all(
+    chunks.map(async chunk => {
+      const res = await fetch(
+        `${cfg.apiBase}/videos?part=snippet,statistics,status&id=${chunk.join(",")}`,
+        { headers, cache: "no-store" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message ?? "Videos fetch failed");
+      return (data.items ?? []) as RawVideo[];
+    })
+  );
+
+  const results: VideoSummary[] = [];
+  for (const items of chunkResults) {
+    for (const v of items) {
       if (v.status.privacyStatus !== "public") continue;
       results.push({
         id:          v.id,
