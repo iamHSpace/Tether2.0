@@ -127,6 +127,7 @@ export interface Profile {
   platform_reason: string | null;
   metric_visibility: MetricVisibility | null;
   category: string | null;
+  updated_at?: string;
 }
 
 export interface ProfileResponse {

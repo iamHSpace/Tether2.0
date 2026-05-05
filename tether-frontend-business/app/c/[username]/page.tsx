@@ -285,10 +285,15 @@ export default function BusinessCreatorProfile() {
         {/* Verified notice */}
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-green-50 border border-green-100">
           <IconShield size={15} className="text-green-600 shrink-0" />
-          <p className="text-xs text-green-700">
-            All metrics are <strong>pulled directly from platform APIs</strong> — not self-reported.
-            {capturedAt && <span className="text-green-500 ml-1">Last updated {timeAgo(capturedAt)}.</span>}
-          </p>
+          <div className="flex-1">
+            <p className="text-xs text-green-700">
+              All metrics are <strong>pulled directly from platform APIs</strong> — not self-reported.
+              {capturedAt && <span className="text-green-500 ml-1">Metrics updated {timeAgo(capturedAt)}.</span>}
+            </p>
+            {profile.updated_at && (
+              <p className="text-[11px] text-green-500 mt-0.5">Profile last updated {timeAgo(profile.updated_at)}.</p>
+            )}
+          </div>
         </div>
 
         {/* No platforms */}
