@@ -86,6 +86,7 @@ export interface Profile {
   metric_visibility: Record<string, boolean> | null;
   user_type: "creator" | "business" | null;
   category: string | null;
+  updated_at?: string;
 }
 
 export interface VideoSummary {
@@ -132,6 +133,7 @@ export interface DiscoverCreator {
   bio: string | null;
   category: string | null;
   creator_stage: string | null;
+  updated_at: string;
   subscribers: number;
   total_views: number;
   video_count: number;

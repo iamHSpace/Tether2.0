@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   // 1. Profile query — text search + profile-level filters done in Postgres
   let profileQuery = adminClient
     .from("profiles")
-    .select("id, username, full_name, bio, category, creator_stage, avatar_url")
+    .select("id, username, full_name, bio, category, creator_stage, avatar_url, updated_at")
     .not("username", "is", null)
     .neq("user_type", "business");
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   // 3. Merge + apply metric filters + sort + paginate (all in-memory)
   type MergedCreator = {
     id: string; username: string; full_name: string | null; bio: string | null;
-    category: string | null; creator_stage: string | null;
+    category: string | null; creator_stage: string | null; updated_at: string;
     subscribers: number; total_views: number; video_count: number; avg_views: number;
   };
 
@@ -88,12 +88,13 @@ export async function GET(req: NextRequest) {
       if (s.videoCount  > max_videos)    return false;
       return true;
     })
-    .map((p: { id: string; username: string; full_name: string | null; bio: string | null; category: string | null; creator_stage: string | null; avatar_url: string | null }) => ({
+    .map((p: { id: string; username: string; full_name: string | null; bio: string | null; category: string | null; creator_stage: string | null; avatar_url: string | null; updated_at: string }) => ({
       id:            p.id,
       username:      p.username,
       full_name:     p.full_name,
       bio:           p.bio,
       category:      p.category,
+      updated_at:    p.updated_at,
       creator_stage: p.creator_stage,
       subscribers:   latestSnap[p.id].subscribers,
       total_views:   latestSnap[p.id].totalViews,

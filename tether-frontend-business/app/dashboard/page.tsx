@@ -230,7 +230,12 @@ function CreatorCard({ creator: c, onUnsave }: { creator: EnrichedCreator; onUns
         </div>
       )}
 
-      <p className="text-[10px] text-gray-300 mt-3">Saved {timeAgo(c.saved_at)}</p>
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-[10px] text-gray-300">Saved {timeAgo(c.saved_at)}</p>
+        {c.profile?.updated_at && (
+          <p className="text-[10px] text-gray-300">Profile updated {timeAgo(c.profile.updated_at)}</p>
+        )}
+      </div>
     </div>
   );
 }

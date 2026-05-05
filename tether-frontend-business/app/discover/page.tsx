@@ -9,6 +9,7 @@ import {
   IconSearch, IconUsers, IconEye, IconVideo, IconCompass, IconStar,
   IconBookmark, IconBookmarkFilled, IconExternal, IconTrendUp, IconCheck,
 } from "@/components/ui/Icons";
+import { timeAgo } from "@/lib/utils";
 
 // ── Filter definitions ────────────────────────────────────────────────────────
 
@@ -182,6 +183,10 @@ function CreatorCard({ creator: c, isSaved, onSave, onUnsave }: CreatorCardProps
           <IconExternal size={11} /> View
         </a>
       </div>
+
+      {c.updated_at && (
+        <p className="text-[10px] text-gray-300 -mt-1">Updated {timeAgo(c.updated_at)}</p>
+      )}
     </div>
   );
 }
