@@ -213,7 +213,7 @@ function CreatorCard({ creator: c, onUnsave }: { creator: EnrichedCreator; onUns
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          <a href={`/c/${c.creator_username}`}
+          <a href={`${process.env.NEXT_PUBLIC_CREATOR_URL ?? "https://tether-frontend.vercel.app"}/c/${c.creator_username}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">
             <IconExternal size={11} /> View
           </a>

@@ -178,7 +178,7 @@ function CreatorCard({ creator: c, isSaved, onSave, onUnsave }: CreatorCardProps
           {isSaved ? <IconBookmarkFilled size={11} /> : <IconBookmark size={11} />}
           {busy ? "…" : isSaved ? "Saved" : "Save creator"}
         </button>
-        <a href={`/c/${c.username}`}
+        <a href={`${process.env.NEXT_PUBLIC_CREATOR_URL ?? "https://tether-frontend.vercel.app"}/c/${c.username}`} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">
           <IconExternal size={11} /> View
         </a>
