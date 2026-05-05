@@ -229,6 +229,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing]             = useState(false);
   const [showAllVideos, setShowAllVideos]       = useState(false);
   const [videoSort, setVideoSort]               = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "views", dir: "desc" });
+  const [profileViews, setProfileViews]         = useState<{ this_week: number; last_week: number } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -262,6 +263,11 @@ export default function DashboardPage() {
     }
 
     setLoading(false);
+
+    // Load profile views independently — non-blocking
+    api.profile.views()
+      .then(v => setProfileViews({ this_week: v.this_week, last_week: v.last_week }))
+      .catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -394,6 +400,21 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-400 mt-0.5">Creator analytics dashboard</p>
           </div>
           <div className="flex items-center gap-2">
+            {profileViews !== null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-brand-100 bg-brand-50 text-brand-700 shadow-sm">
+                <IconEye size={12} />
+                <span>
+                  <strong>{profileViews.this_week}</strong> view{profileViews.this_week !== 1 ? "s" : ""} this week
+                </span>
+                {profileViews.last_week > 0 && (
+                  <span className={`text-[10px] font-semibold ml-0.5 ${profileViews.this_week >= profileViews.last_week ? "text-green-600" : "text-gray-400"}`}>
+                    {profileViews.this_week >= profileViews.last_week
+                      ? `↑ vs ${profileViews.last_week} last week`
+                      : `↓ vs ${profileViews.last_week} last week`}
+                  </span>
+                )}
+              </div>
+            )}
             {profile?.username && (
               <>
                 <a href={`/c/${profile.username}`} target="_blank" rel="noopener noreferrer"

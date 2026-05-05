@@ -183,6 +183,7 @@ export const api = {
   profile: {
     get: () => get<ProfileResponse>("/api/profile"),
     update: (data: ProfileUpdate) => put<{ profile: Profile }>("/api/profile", data),
+    views: () => get<{ this_week: number; last_week: number; all_time: number; daily: { date: string; count: number }[] }>("/api/profile/views"),
     updateMetrics: (visibility: MetricVisibility) =>
       put<{ profile: Profile }>("/api/profile", { metric_visibility: visibility }),
     checkUsername: (username: string) =>

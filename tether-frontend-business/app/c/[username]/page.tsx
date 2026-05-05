@@ -96,6 +96,8 @@ export default function BusinessCreatorProfile() {
       if (user) {
         const { saved } = await api.saved.list();
         setIsSaved(saved.some(s => s.creator_username === username));
+        // Log the view — fire-and-forget, don't block page load
+        api.creators.logView(username).catch(() => {});
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

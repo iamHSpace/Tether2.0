@@ -156,6 +156,8 @@ export const api = {
   creators: {
     get: (username: string) =>
       publicGet<CreatorResponse>(`/api/creators/${encodeURIComponent(username)}`),
+    logView: (username: string) =>
+      post<{ counted: boolean }>(`/api/creators/${encodeURIComponent(username)}/view`, {}),
   },
 
   saved: {
