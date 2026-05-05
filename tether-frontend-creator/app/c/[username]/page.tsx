@@ -37,15 +37,34 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { username } = await params;
   const data = await getCreator(username).catch(() => null);
-  if (!data) return { title: "Creator not found — Tether" };
-  const { profile } = data;
+  if (!data) return { title: "Creator not found" };
+
+  const { profile, snapshots } = data;
   const name = profile.full_name ?? `@${profile.username}`;
+  const ytChannel = snapshots["youtube"]?.data?.channel;
+  const subCount = ytChannel?.subscribers;
+  const richDescription = profile.bio
+    ?? (subCount
+      ? `Verified YouTube creator with ${fmt(subCount)} subscribers. See real metrics on Tether.`
+      : `${name}'s verified creator profile on Tether.`);
+
+  const pageUrl = `https://tether-frontend.vercel.app/c/${username}`;
+
   return {
-    title: `${name} — Tether`,
-    description: profile.bio ?? `${name}'s verified creator profile on Tether.`,
+    title: name,
+    description: richDescription,
+    alternates: { canonical: pageUrl },
     openGraph: {
+      type: "profile",
+      siteName: "Tether",
       title: `${name} — Tether`,
-      description: profile.bio ?? `Verified creator profile on Tether.`,
+      description: richDescription,
+      url: pageUrl,
+    },
+    twitter: {
+      card: "summary",
+      title: `${name} — Tether`,
+      description: richDescription,
     },
   };
 }

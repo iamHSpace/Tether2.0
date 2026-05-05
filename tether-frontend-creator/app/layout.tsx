@@ -13,9 +13,31 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const BASE_URL = "https://tether-frontend.vercel.app";
+
 export const metadata: Metadata = {
-  title: "Tether — Creator Intelligence Platform",
-  description: "Connect your social accounts and share verified metrics with brands and agencies.",
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: "Tether — Creator Intelligence Platform",
+    template: "%s — Tether",
+  },
+  description: "Connect your social accounts and share verified metrics with brands and agencies. Get discovered by top companies.",
+  openGraph: {
+    type: "website",
+    siteName: "Tether",
+    title: "Tether — Creator Intelligence Platform",
+    description: "Connect your social accounts and share verified metrics with brands and agencies.",
+    url: BASE_URL,
+  },
+  twitter: {
+    card: "summary",
+    title: "Tether — Creator Intelligence Platform",
+    description: "Connect your social accounts and share verified metrics with brands and agencies.",
+  },
+  icons: {
+    icon: "/favicon.svg",
+  },
+  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
