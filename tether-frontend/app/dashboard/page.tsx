@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { api, YouTubeStatsResponse, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
+import { api, ApiError, YouTubeStatsResponse, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
 import { fmt, timeAgo, cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
@@ -220,6 +220,7 @@ export default function DashboardPage() {
   const [profile, setProfile]         = useState<DashboardProfile | null>(null);
   const [ytData, setYtData]           = useState<YouTubeStatsResponse | null>(null);
   const [ytError, setYtError]         = useState<string | null>(null);
+  const [ytExpired, setYtExpired]     = useState(false);
   const [loading, setLoading]         = useState(true);
   const [ytConnected, setYtConnected] = useState<boolean | null>(null);
   const [copied, setCopied]           = useState(false);
@@ -270,10 +271,26 @@ export default function DashboardPage() {
       setYtData(ytResult.value);
       setYtConnected(true);
       setYtError(null);
+      setYtExpired(false);
     } else {
-      const msg = ytResult.reason instanceof Error ? ytResult.reason.message : String(ytResult.reason);
-      setYtConnected(msg.toLowerCase().includes("not connected") || msg.toLowerCase().includes("no youtube") ? false : true);
-      setYtError(msg);
+      const err = ytResult.reason;
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 404) {
+        // Never connected — show connect CTA, no error banner
+        setYtConnected(false);
+        setYtExpired(false);
+        setYtError(null);
+      } else if (status === 401) {
+        // Token expired — show reconnect CTA
+        setYtConnected(false);
+        setYtExpired(true);
+        setYtError(null);
+      } else {
+        // YouTube API error while connected — keep "connected" card, show error banner
+        setYtConnected(true);
+        setYtExpired(false);
+        setYtError(err instanceof Error ? err.message : String(err));
+      }
     }
 
     setLoading(false);
@@ -292,9 +309,19 @@ export default function DashboardPage() {
   }
 
   async function refreshMetrics() {
-    setRefreshing(true); setYtError(null);
-    try { setYtData(await api.youtube.stats()); }
-    catch (err) { setYtError(err instanceof Error ? err.message : String(err)); }
+    setRefreshing(true); setYtError(null); setYtExpired(false);
+    try {
+      setYtData(await api.youtube.stats());
+      setYtConnected(true);
+    } catch (err) {
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 401) {
+        setYtConnected(false);
+        setYtExpired(true);
+      } else if (status !== 404) {
+        setYtError(err instanceof Error ? err.message : String(err));
+      }
+    }
     setRefreshing(false);
   }
 
@@ -484,19 +511,19 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl p-4 border-2 border-dashed border-red-100 flex items-center justify-between">
+                <div className={`bg-white rounded-2xl p-4 border-2 border-dashed flex items-center justify-between ${ytExpired ? "border-amber-200" : "border-red-100"}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-50 border border-red-100 flex items-center justify-center">
-                      <IconYoutube size={18} className="text-red-400" />
+                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${ytExpired ? "bg-amber-50 border-amber-100" : "bg-red-50 border-red-100"}`}>
+                      <IconYoutube size={18} className={ytExpired ? "text-amber-400" : "text-red-400"} />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">YouTube</p>
-                      <p className="text-xs text-gray-400">Not connected</p>
+                      <p className="text-xs text-gray-400">{ytExpired ? "Session expired — reconnect to continue" : "Not connected"}</p>
                     </div>
                   </div>
                   <button onClick={() => api.youtube.connect()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-600 text-white hover:bg-red-700">
-                    <IconYoutube size={12} className="text-white" /> Connect
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white ${ytExpired ? "bg-amber-500 hover:bg-amber-600" : "bg-red-600 hover:bg-red-700"}`}>
+                    <IconYoutube size={12} className="text-white" /> {ytExpired ? "Reconnect" : "Connect"}
                   </button>
                 </div>
               )}
@@ -506,7 +533,7 @@ export default function DashboardPage() {
           {ytError && <ErrorAlert message={ytError} onRetry={refreshMetrics} />}
 
           {/* ── No YouTube state ───────────────────────────────────────────── */}
-          {!loading && ytConnected === false && !ytData && (
+          {!loading && !ytConnected && !ytData && !ytExpired && (
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
               <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
                 <IconYoutube size={24} className="text-red-400" />

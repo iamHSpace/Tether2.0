@@ -9,6 +9,15 @@ import { supabase } from "@/lib/supabase";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
 
+// ── Typed error ───────────────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 // ── Auth header ───────────────────────────────────────────────────────────────
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -25,7 +34,7 @@ async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { headers, cache: "no-store" });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);
+    throw new ApiError((body as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -41,7 +50,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Request failed: ${res.status}`);
+    throw new ApiError((data as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -57,7 +66,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Request failed: ${res.status}`);
+    throw new ApiError((data as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -73,7 +82,7 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Request failed: ${res.status}`);
+    throw new ApiError((data as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -83,7 +92,7 @@ async function publicGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { next: { revalidate: 300 } } as RequestInit);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);
+    throw new ApiError((body as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
   }
   return res.json() as Promise<T>;
 }
