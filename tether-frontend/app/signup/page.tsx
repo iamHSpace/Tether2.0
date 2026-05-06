@@ -145,9 +145,28 @@ export default function SignupPage() {
           <p className="text-gray-500 text-sm mt-1">
             {isCreator ? "Your verified creator profile starts here" : "Find and connect with verified creators"}
           </p>
-          <button onClick={() => setStep("type")} className="mt-2 text-xs text-brand-600 hover:text-brand-700 font-medium">
-            ← Change account type
-          </button>
+          {/* Selected role badge + back link */}
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+              isCreator
+                ? "bg-purple-50 text-purple-700 border border-purple-100"
+                : "bg-blue-50 text-blue-700 border border-blue-100"
+            }`}>
+              {isCreator ? (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="23,7 16,12 23,17 23,7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                </svg>
+              )}
+              {isCreator ? "Creator account" : "Business account"}
+            </span>
+            <button onClick={() => setStep("type")} className="text-xs text-gray-400 hover:text-brand-600 font-medium">
+              Change
+            </button>
+          </div>
         </div>
 
         <div className="card p-8">

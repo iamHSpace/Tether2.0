@@ -12,13 +12,15 @@ const GOOGLE_SVG = (
   </svg>
 );
 
+type UserType = "creator" | "business";
+
 export default function LoginPage() {
+  const [userType, setUserType] = useState<UserType>("creator");
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
-  // Read ?error= from the URL (set by the OAuth callback on failure)
   const urlError =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("error")
@@ -32,46 +34,29 @@ export default function LoginPage() {
       password,
     });
     if (error) { setError(error.message); setLoading(false); return; }
-    window.location.href = "/dashboard";
+    // Middleware routes to the correct home based on user_type in JWT
+    window.location.href = userType === "business" ? "/discover" : "/dashboard";
   }
 
-  /**
-   * Initiate Google OAuth from the browser using createBrowserClient.
-   *
-   * Why client-side (not a server route):
-   *   @supabase/ssr's createBrowserClient writes the PKCE code verifier
-   *   directly into document.cookie before the browser is redirected to
-   *   Google. When Google/Supabase redirect back to /api/auth/callback,
-   *   the browser automatically sends those cookies in the request, so the
-   *   server-side callback can read the verifier via cookieStore.getAll().
-   *
-   *   A server-side route handler also works in principle, but Set-Cookie
-   *   headers on a 302 response can be silently dropped in some
-   *   browser/proxy combinations — causing the "PKCE code verifier not
-   *   found in storage" error.  The client-side path is simpler and
-   *   guaranteed: the cookie is in document.cookie BEFORE the browser
-   *   leaves the page.
-   */
   async function handleGoogleLogin() {
     setLoading(true); setError(null);
-    // Always derive the redirect URL from the actual browser origin so that
-    // the PKCE code-verifier cookie (set by document.cookie on THIS origin)
-    // is sent back when the browser returns to the callback URL.
-    // Using a hard-coded env var (e.g. http://127.0.0.1:3001) while the
-    // browser is on http://localhost:3001 would create a domain mismatch —
-    // the cookie is scoped to localhost but the redirect goes to 127.0.0.1.
+    // Store intended role for Google OAuth — needed when the account is new
+    localStorage.setItem("tether_intended_user_type", userType);
     const redirectTo = `${window.location.origin}/api/auth/callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
     });
     if (error) { setError(error.message); setLoading(false); }
-    // On success the browser is redirected automatically — no more code runs here.
   }
+
+  const isCreator = userType === "creator";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+
+        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-white">
@@ -79,10 +64,44 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your Tether account</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {isCreator ? "Sign in to your creator account" : "Sign in to your business account"}
+          </p>
         </div>
 
         <div className="card p-8">
+          {/* Role toggle */}
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl mb-6">
+            <button
+              type="button"
+              onClick={() => setUserType("creator")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                isCreator ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={isCreator ? "#7c3aed" : "currentColor"}
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="23,7 16,12 23,17 23,7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              Creator
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserType("business")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                !isCreator ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={!isCreator ? "#2563eb" : "currentColor"}
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </svg>
+              Business
+            </button>
+          </div>
+
           {(error ?? urlError) && (
             <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
               {error ?? urlError}
@@ -95,7 +114,7 @@ export default function LoginPage() {
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5 disabled:opacity-50"
           >
             {GOOGLE_SVG}
-            {loading ? "Redirecting…" : "Continue with Google"}
+            {loading ? "Redirecting…" : `Continue with Google`}
           </button>
 
           <div className="flex items-center gap-3 mb-5">
@@ -124,7 +143,7 @@ export default function LoginPage() {
               />
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full mt-1 py-3 text-sm">
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? "Signing in…" : `Sign in as ${isCreator ? "Creator" : "Business"}`}
             </button>
           </form>
 
