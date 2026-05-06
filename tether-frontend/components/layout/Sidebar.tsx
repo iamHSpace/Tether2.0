@@ -6,15 +6,19 @@ import { cn } from "@/lib/utils";
 import {
   IconDashboard, IconCompass, IconBookmarkFilled,
   IconSettings, IconLogout, IconUser,
+  IconMessage, IconBriefcase,
 } from "@/components/ui/Icons";
 
 const CREATOR_NAV = [
-  { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
+  { href: "/dashboard",  label: "Dashboard",  Icon: IconDashboard  },
+  { href: "/businesses", label: "Businesses",  Icon: IconBriefcase  },
+  { href: "/messages",   label: "Messages",    Icon: IconMessage    },
 ];
 
 const BUSINESS_NAV = [
-  { href: "/discover", label: "Discover",        Icon: IconCompass       },
-  { href: "/saved",    label: "Saved Creators",   Icon: IconBookmarkFilled },
+  { href: "/discover",   label: "Discover",        Icon: IconCompass       },
+  { href: "/saved",      label: "Saved Creators",   Icon: IconBookmarkFilled },
+  { href: "/messages",   label: "Messages",         Icon: IconMessage       },
 ];
 
 const BOTTOM_NAV = [
@@ -24,10 +28,12 @@ const BOTTOM_NAV = [
 interface Props {
   email?: string;
   username?: string;
+  displayName?: string;
   userType?: "creator" | "business";
+  unreadCount?: number;
 }
 
-export default function Sidebar({ email, username, userType = "creator" }: Props) {
+export default function Sidebar({ email, username, displayName, userType = "creator", unreadCount = 0 }: Props) {
   const path = usePathname();
 
   async function handleLogout() {
@@ -36,7 +42,7 @@ export default function Sidebar({ email, username, userType = "creator" }: Props
   }
 
   const nav = userType === "business" ? BUSINESS_NAV : CREATOR_NAV;
-  const displayName = username ?? (userType === "business" ? "Business" : "Creator");
+  const nameToShow = displayName ?? username ?? (userType === "business" ? "Business" : "Creator");
 
   return (
     <aside className="w-60 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-gray-100">
@@ -61,6 +67,11 @@ export default function Sidebar({ email, username, userType = "creator" }: Props
         {nav.map(({ href, label, Icon }) => (
           <a key={href} href={href} className={cn("sidebar-link", path === href && "active")}>
             <Icon size={16} /> {label}
+            {label === "Messages" && unreadCount > 0 && (
+              <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-brand-600 text-white min-w-[18px] text-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </a>
         ))}
       </nav>
@@ -82,7 +93,7 @@ export default function Sidebar({ email, username, userType = "creator" }: Props
             <IconUser size={14} className="text-brand-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate">{displayName}</p>
+            <p className="text-xs font-semibold text-gray-800 truncate">{nameToShow}</p>
             <p className="text-[10px] text-gray-400 truncate">{email}</p>
           </div>
         </div>

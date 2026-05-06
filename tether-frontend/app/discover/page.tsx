@@ -7,7 +7,7 @@ import { fmt, timeAgo } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
   IconSearch, IconUsers, IconEye, IconVideo, IconCompass, IconStar,
-  IconBookmark, IconBookmarkFilled, IconExternal, IconTrendUp, IconCheck,
+  IconBookmark, IconBookmarkFilled, IconExternal, IconTrendUp, IconCheck, IconMessage,
 } from "@/components/ui/Icons";
 
 // ── Filter definitions ────────────────────────────────────────────────────────
@@ -112,15 +112,23 @@ interface CreatorCardProps {
   isSaved: boolean;
   onSave: (u: string) => void;
   onUnsave: (u: string) => void;
+  onMessage: (id: string) => void;
 }
 
-function CreatorCard({ creator: c, isSaved, onSave, onUnsave }: CreatorCardProps) {
+function CreatorCard({ creator: c, isSaved, onSave, onUnsave, onMessage }: CreatorCardProps) {
   const [busy, setBusy] = useState(false);
+  const [messaging, setMessaging] = useState(false);
 
   async function toggle() {
     setBusy(true);
     if (isSaved) await onUnsave(c.username); else await onSave(c.username);
     setBusy(false);
+  }
+
+  async function handleMessage() {
+    setMessaging(true);
+    await onMessage(c.id);
+    setMessaging(false);
   }
 
   return (
@@ -171,9 +179,13 @@ function CreatorCard({ creator: c, isSaved, onSave, onUnsave }: CreatorCardProps
           {isSaved ? <IconBookmarkFilled size={11} /> : <IconBookmark size={11} />}
           {busy ? "…" : isSaved ? "Saved" : "Save creator"}
         </button>
+        <button onClick={handleMessage} disabled={messaging}
+          className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50">
+          <IconMessage size={11} /> {messaging ? "…" : "Message"}
+        </button>
         <a href={`/c/${c.username}`} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">
-          <IconExternal size={11} /> View
+          className="w-8 h-8 flex items-center justify-center rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-400">
+          <IconExternal size={11} />
         </a>
       </div>
 
@@ -236,7 +248,7 @@ export default function DiscoverPage() {
     try {
       const { profile, email: em } = await api.profile.get();
       setEmail(em ?? user.email ?? "");
-      setDisplayName(profile.full_name ?? profile.username ?? "");
+      setDisplayName(profile.company_name ?? profile.full_name ?? profile.username ?? "");
     } catch { setEmail(user.email ?? ""); }
 
     try {
@@ -282,6 +294,12 @@ export default function DiscoverPage() {
     await api.saved.unsave(username).catch(() => {});
     setSaved(s => { const n = new Set(s); n.delete(username); return n; });
   }
+  async function handleMessage(creatorId: string) {
+    try {
+      const { conversation } = await api.conversations.start(creatorId);
+      window.location.href = `/messages?c=${conversation.id}`;
+    } catch { /* non-fatal — navigate to messages anyway */ window.location.href = "/messages"; }
+  }
 
   function setFilter<K extends keyof Filters>(key: K, val: Filters[K]) {
     setFilters(f => ({ ...f, [key]: val }));
@@ -292,7 +310,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex h-screen bg-[#f5f0e8] overflow-hidden">
-      <Sidebar email={email} username={displayName} userType="business" />
+      <Sidebar email={email} displayName={displayName || undefined} userType="business" />
 
       <main className="flex-1 overflow-hidden flex flex-col">
         <header className="bg-white/70 backdrop-blur-sm border-b border-white/80 px-6 py-4 shrink-0">
@@ -427,7 +445,8 @@ export default function DiscoverPage() {
                     {displayCreators.map(c => (
                       <CreatorCard key={c.id} creator={c}
                         isSaved={savedUsernames.has(c.username)}
-                        onSave={handleSave} onUnsave={handleUnsave} />
+                        onSave={handleSave} onUnsave={handleUnsave}
+                        onMessage={handleMessage} />
                     ))}
                   </div>
                 )}

@@ -38,12 +38,13 @@ export async function middleware(request: NextRequest) {
     const isAuthPage = path === "/" || AUTH_REDIRECT_PATHS.some(p => path.startsWith(p));
 
     // Role guards — wrong-role users get bounced to their home
-    if (userType === "business" && (path.startsWith("/dashboard") || path.startsWith("/onboarding"))) {
+    if (userType === "business" && (path.startsWith("/dashboard") || path.startsWith("/onboarding") || path.startsWith("/businesses"))) {
       return NextResponse.redirect(new URL("/discover", request.url));
     }
     if (userType === "creator" && (path.startsWith("/discover") || path.startsWith("/saved"))) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
+    // /messages is accessible to both roles — no guard needed
 
     // Redirect away from auth/landing pages to role-appropriate home
     if (isAuthPage) {

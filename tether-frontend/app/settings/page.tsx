@@ -17,6 +17,7 @@ const CREATOR_CATEGORIES = [
 interface SettingsProfile {
   username: string;
   full_name: string;
+  company_name: string;
   bio: string;
   website: string;
   avatar_url: string;
@@ -37,7 +38,7 @@ type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 
 export default function SettingsPage() {
   const [tab, setTab]         = useState<Tab>("profile");
-  const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "", category: "" });
+  const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", company_name: "", bio: "", website: "", avatar_url: "", email: "", category: "" });
   const [savedUsername, setSavedUsername] = useState("");   // username already in DB
   const [userType, setUserType] = useState<"creator" | "business">("creator");
   const [loading, setLoading] = useState(true);
@@ -57,13 +58,14 @@ export default function SettingsPage() {
         const { profile: prof, email } = await api.profile.get();
         const u = prof.username ?? "";
         setProfile({
-          username:   u,
-          full_name:  prof.full_name  ?? "",
-          bio:        prof.bio        ?? "",
-          website:    prof.website    ?? "",
-          avatar_url: prof.avatar_url ?? "",
-          email:      email ?? user.email ?? "",
-          category:   prof.category   ?? "",
+          username:     u,
+          full_name:    prof.full_name    ?? "",
+          company_name: prof.company_name ?? "",
+          bio:          prof.bio          ?? "",
+          website:      prof.website      ?? "",
+          avatar_url:   prof.avatar_url   ?? "",
+          email:        email ?? user.email ?? "",
+          category:     prof.category     ?? "",
         });
         setSavedUsername(u);
         if (u) setUsernameStatus("available");
@@ -111,11 +113,12 @@ export default function SettingsPage() {
     setSaving(true); setError(null);
     try {
       await api.profile.update({
-        username:  profile.username.trim() || null,
-        full_name: profile.full_name.trim() || null,
-        bio:       profile.bio.trim() || null,
-        website:   profile.website.trim() || null,
-        category:  profile.category || null,
+        username:     profile.username.trim()     || null,
+        full_name:    profile.full_name.trim()    || null,
+        company_name: profile.company_name.trim() || null,
+        bio:          profile.bio.trim()          || null,
+        website:      profile.website.trim()      || null,
+        category:     profile.category            || null,
       });
       setSavedUsername(profile.username.trim());
       setSaved(true);
@@ -149,7 +152,12 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar email={profile.email} username={profile.username || undefined} userType={userType} />
+      <Sidebar
+        email={profile.email}
+        username={profile.username || undefined}
+        displayName={userType === "business" ? (profile.company_name || profile.full_name || profile.username || undefined) : (profile.full_name || profile.username || undefined)}
+        userType={userType}
+      />
 
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white border-b border-gray-100 px-8 py-4 sticky top-0 z-10">
@@ -158,9 +166,9 @@ export default function SettingsPage() {
         </header>
 
         <div className="p-8 max-w-3xl">
-          {/* Tab nav */}
+          {/* Tab nav — hide Connections for business users */}
           <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6 w-fit">
-            {TABS.map(({ id, label, icon: Icon }) => (
+            {TABS.filter(t => !(userType === "business" && t.id === "connections")).map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
@@ -174,8 +182,14 @@ export default function SettingsPage() {
           {tab === "profile" && (
             <form onSubmit={handleSave} className="card p-6 space-y-5">
               <div>
-                <h2 className="font-semibold text-gray-900 mb-1">Public profile</h2>
-                <p className="text-sm text-gray-500">This is what brands and agencies see when you share your link.</p>
+                <h2 className="font-semibold text-gray-900 mb-1">
+                  {userType === "business" ? "Company profile" : "Public profile"}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {userType === "business"
+                    ? "This is what creators see when they view your company."
+                    : "This is what brands and agencies see when you share your link."}
+                </p>
               </div>
 
               {error && (
@@ -188,7 +202,9 @@ export default function SettingsPage() {
               {/* Avatar placeholder */}
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shrink-0">
-                  {profile.full_name?.[0] ?? profile.username?.[0]?.toUpperCase() ?? "?"}
+                  {userType === "business"
+                    ? (profile.company_name?.[0] ?? profile.full_name?.[0] ?? profile.username?.[0]?.toUpperCase() ?? "?")
+                    : (profile.full_name?.[0] ?? profile.username?.[0]?.toUpperCase() ?? "?")}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-700">Profile picture</p>
@@ -197,11 +213,19 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full name</label>
-                  <input className="input" placeholder="Jane Creator"
-                    value={profile.full_name} onChange={e => set("full_name", e.target.value)} />
-                </div>
+                {userType === "business" ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Company name</label>
+                    <input className="input" placeholder="Acme Corp"
+                      value={profile.company_name} onChange={e => set("company_name", e.target.value)} />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Full name</label>
+                    <input className="input" placeholder="Jane Creator"
+                      value={profile.full_name} onChange={e => set("full_name", e.target.value)} />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
                   <div className="relative">
@@ -248,10 +272,12 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  {userType === "business" ? "About your company" : "Bio"}
+                </label>
                 <textarea
                   className="input resize-none" rows={3}
-                  placeholder="Tell brands and agencies about yourself…"
+                  placeholder={userType === "business" ? "Tell creators what your company does…" : "Tell brands and agencies about yourself…"}
                   value={profile.bio}
                   onChange={e => set("bio", e.target.value)}
                   maxLength={200}
@@ -260,18 +286,22 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Channel category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  {userType === "business" ? "Industry" : "Channel category"}
+                </label>
                 <select
                   className="input"
                   value={profile.category}
                   onChange={e => set("category", e.target.value)}
                 >
-                  <option value="">— Select a category —</option>
+                  <option value="">— Select —</option>
                   {CREATOR_CATEGORIES.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Helps brands find creators in the right niche.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {userType === "business" ? "Helps creators find businesses in the right space." : "Helps brands find creators in the right niche."}
+                </p>
               </div>
 
               <div>

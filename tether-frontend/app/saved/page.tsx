@@ -7,7 +7,7 @@ import { fmt, timeAgo } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
   IconBookmarkFilled, IconExternal, IconYoutube, IconUsers, IconEye,
-  IconVideo, IconAlert, IconSearch, IconTrendUp,
+  IconVideo, IconAlert, IconSearch, IconTrendUp, IconMessage,
 } from "@/components/ui/Icons";
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -37,7 +37,7 @@ export default function SavedPage() {
     try {
       const { profile, email: em } = await api.profile.get();
       setEmail(em ?? user.email ?? "");
-      setDisplayName(profile.full_name ?? profile.username ?? "");
+      setDisplayName(profile.company_name ?? profile.full_name ?? profile.username ?? "");
     } catch { setEmail(user.email ?? ""); }
 
     try {
@@ -75,6 +75,13 @@ export default function SavedPage() {
     await api.saved.unsave(username).catch(() => {});
   }
 
+  async function handleMessage(creatorId: string) {
+    try {
+      const { conversation } = await api.conversations.start(creatorId);
+      window.location.href = `/messages?c=${conversation.id}`;
+    } catch { window.location.href = "/messages"; }
+  }
+
   const allCategories = Array.from(new Set(saved.map(c => c.profile?.category).filter(Boolean))) as string[];
 
   const filtered = saved.filter(c => {
@@ -86,7 +93,7 @@ export default function SavedPage() {
 
   return (
     <div className="flex h-screen bg-[#f5f0e8] overflow-hidden">
-      <Sidebar email={email} username={displayName} userType="business" />
+      <Sidebar email={email} displayName={displayName || undefined} userType="business" />
 
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white/70 backdrop-blur-sm border-b border-white/80 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
@@ -142,7 +149,7 @@ export default function SavedPage() {
             </div>
           ) : (
             filtered.map(c => (
-              <CreatorCard key={c.creator_username} creator={c} onUnsave={unsave} />
+              <CreatorCard key={c.creator_username} creator={c} onUnsave={unsave} onMessage={handleMessage} />
             ))
           )}
         </div>
@@ -151,9 +158,10 @@ export default function SavedPage() {
   );
 }
 
-function CreatorCard({ creator: c, onUnsave }: { creator: EnrichedCreator; onUnsave: (u: string) => void }) {
+function CreatorCard({ creator: c, onUnsave, onMessage }: { creator: EnrichedCreator; onUnsave: (u: string) => void; onMessage: (id: string) => void }) {
   const ch = c.ytChannel;
   const avgViews = ch ? Math.round(ch.totalViews / Math.max(ch.videoCount, 1)) : 0;
+  const creatorId = c.profile?.id ?? "";
 
   return (
     <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
@@ -208,6 +216,10 @@ function CreatorCard({ creator: c, onUnsave }: { creator: EnrichedCreator; onUns
         )}
 
         <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => creatorId && onMessage(creatorId)} disabled={!creatorId || c.loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-40">
+            <IconMessage size={11} /> Message
+          </button>
           <a href={`/c/${c.creator_username}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">
             <IconExternal size={11} /> View

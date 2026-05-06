@@ -144,6 +144,7 @@ export interface Profile {
   id: string;
   username: string | null;
   full_name: string | null;
+  company_name: string | null;
   bio: string | null;
   website: string | null;
   avatar_url: string | null;
@@ -207,6 +208,49 @@ export interface DiscoverCreator {
 export interface DiscoverResponse {
   creators: DiscoverCreator[];
   total: number;
+}
+
+export interface BusinessProfile {
+  id: string;
+  username: string | null;
+  company_name: string | null;
+  full_name: string | null;
+  bio: string | null;
+  website: string | null;
+  category: string | null;
+  updated_at: string;
+}
+
+export interface BusinessesResponse {
+  businesses: BusinessProfile[];
+  total: number;
+}
+
+export interface ConversationMessage {
+  id: string;
+  sender_id: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  other_user: {
+    id: string;
+    username: string | null;
+    display_name: string;
+    avatar_url: string | null;
+    user_type: "creator" | "business";
+  };
+  last_message: {
+    body: string;
+    sender_id: string;
+    created_at: string;
+  } | null;
+  unread_count: number;
+  last_message_at: string;
+  created_at: string;
 }
 
 // ── API surface ───────────────────────────────────────────────────────────────
@@ -285,6 +329,29 @@ export const api = {
       add("limit",         params.limit);
       add("offset",        params.offset);
       return get<DiscoverResponse>(`/api/business/discover?${qs}`);
+    },
+  },
+
+  /** Conversations & messages */
+  conversations: {
+    list: () => get<{ conversations: Conversation[] }>("/api/conversations"),
+    start: (other_user_id: string) =>
+      post<{ conversation: { id: string } }>("/api/conversations", { other_user_id }),
+    messages: (id: string) =>
+      get<{ messages: ConversationMessage[] }>(`/api/conversations/${id}/messages`),
+    send: (id: string, body: string) =>
+      post<{ message: ConversationMessage }>(`/api/conversations/${id}/messages`, { body }),
+  },
+
+  /** Businesses — for creator browse */
+  businesses: {
+    search: (params: { q?: string; category?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q)        qs.set("q",        params.q);
+      if (params.category) qs.set("category", params.category);
+      if (params.limit)    qs.set("limit",    String(params.limit));
+      if (params.offset)   qs.set("offset",   String(params.offset));
+      return get<BusinessesResponse>(`/api/creators/discover-businesses?${qs}`);
     },
   },
 
