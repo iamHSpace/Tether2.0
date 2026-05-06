@@ -4,27 +4,39 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
-  IconDashboard,
-  IconSettings, IconLogout, IconUser
+  IconDashboard, IconCompass, IconBookmarkFilled,
+  IconSettings, IconLogout, IconUser,
 } from "@/components/ui/Icons";
 
-const NAV = [
+const CREATOR_NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
+];
+
+const BUSINESS_NAV = [
+  { href: "/discover", label: "Discover",        Icon: IconCompass       },
+  { href: "/saved",    label: "Saved Creators",   Icon: IconBookmarkFilled },
 ];
 
 const BOTTOM_NAV = [
   { href: "/settings", label: "Settings", Icon: IconSettings },
 ];
 
-interface Props { email?: string; username?: string; }
+interface Props {
+  email?: string;
+  username?: string;
+  userType?: "creator" | "business";
+}
 
-export default function Sidebar({ email, username }: Props) {
+export default function Sidebar({ email, username, userType = "creator" }: Props) {
   const path = usePathname();
 
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
+
+  const nav = userType === "business" ? BUSINESS_NAV : CREATOR_NAV;
+  const displayName = username ?? (userType === "business" ? "Business" : "Creator");
 
   return (
     <aside className="w-60 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-gray-100">
@@ -37,13 +49,16 @@ export default function Sidebar({ email, username }: Props) {
             </svg>
           </div>
           <span className="font-bold text-gray-900 tracking-tight">Tether</span>
+          {userType === "business" && (
+            <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wide">Biz</span>
+          )}
         </a>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-3 mb-2">Menu</p>
-        {NAV.map(({ href, label, Icon }) => (
+        {nav.map(({ href, label, Icon }) => (
           <a key={href} href={href} className={cn("sidebar-link", path === href && "active")}>
             <Icon size={16} /> {label}
           </a>
@@ -67,7 +82,7 @@ export default function Sidebar({ email, username }: Props) {
             <IconUser size={14} className="text-brand-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate">{username ?? "Creator"}</p>
+            <p className="text-xs font-semibold text-gray-800 truncate">{displayName}</p>
             <p className="text-[10px] text-gray-400 truncate">{email}</p>
           </div>
         </div>

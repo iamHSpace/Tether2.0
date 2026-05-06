@@ -242,6 +242,14 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = "/login"; return; }
 
+    // Handle Google OAuth role assignment — if role was stored before OAuth
+    const intendedType = localStorage.getItem("tether_intended_user_type");
+    if (intendedType && !user.user_metadata?.user_type) {
+      await supabase.auth.updateUser({ data: { user_type: intendedType } });
+      localStorage.removeItem("tether_intended_user_type");
+      if (intendedType === "business") { window.location.href = "/discover"; return; }
+    }
+
     const [profileResult, ytResult] = await Promise.allSettled([
       api.profile.get(),
       api.youtube.stats(),
@@ -249,6 +257,8 @@ export default function DashboardPage() {
 
     if (profileResult.status === "fulfilled") {
       const { profile: prof, email } = profileResult.value;
+      // Fallback redirect for existing business users without JWT metadata
+      if (prof.user_type === "business") { window.location.href = "/discover"; return; }
       const mv = prof.metric_visibility ?? DEFAULT_METRIC_VISIBILITY;
       setProfile({ username: prof.username, email: email ?? user.email ?? "", metricVisibility: mv });
       setMetricVisibility(mv);

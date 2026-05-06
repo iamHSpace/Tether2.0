@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const [tab, setTab]         = useState<Tab>("profile");
   const [profile, setProfile] = useState<SettingsProfile>({ username: "", full_name: "", bio: "", website: "", avatar_url: "", email: "", category: "" });
   const [savedUsername, setSavedUsername] = useState("");   // username already in DB
+  const [userType, setUserType] = useState<"creator" | "business">("creator");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -66,6 +67,7 @@ export default function SettingsPage() {
         });
         setSavedUsername(u);
         if (u) setUsernameStatus("available");
+        if (prof.user_type === "business") setUserType("business");
       } catch {
         setProfile(p => ({ ...p, email: user.email ?? "" }));
       }
@@ -147,7 +149,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar email={profile.email} username={profile.username || undefined} />
+      <Sidebar email={profile.email} username={profile.username || undefined} userType={userType} />
 
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white border-b border-gray-100 px-8 py-4 sticky top-0 z-10">

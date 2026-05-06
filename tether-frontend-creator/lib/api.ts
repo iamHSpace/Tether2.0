@@ -62,6 +62,22 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Authenticated DELETE */
+async function del<T>(path: string, body?: unknown): Promise<T> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: "DELETE",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? `Request failed: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 /** Unauthenticated GET (public endpoints) */
 async function publicGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { next: { revalidate: 300 } } as RequestInit);
@@ -127,6 +143,7 @@ export interface Profile {
   platform_reason: string | null;
   metric_visibility: MetricVisibility | null;
   category: string | null;
+  user_type: "creator" | "business" | null;
   updated_at?: string;
 }
 
@@ -157,6 +174,30 @@ export interface CreatorResponse {
   profile: Profile;
   platforms: PlatformInfo[];
   snapshots: Record<string, { data: SnapshotData; captured_at: string }>;
+}
+
+export interface SavedCreator {
+  creator_username: string;
+  saved_at: string;
+}
+
+export interface DiscoverCreator {
+  id: string;
+  username: string;
+  full_name: string | null;
+  bio: string | null;
+  category: string | null;
+  creator_stage: string | null;
+  updated_at: string;
+  subscribers: number;
+  total_views: number;
+  video_count: number;
+  avg_views: number;
+}
+
+export interface DiscoverResponse {
+  creators: DiscoverCreator[];
+  total: number;
 }
 
 // ── API surface ───────────────────────────────────────────────────────────────
@@ -196,6 +237,46 @@ export const api = {
   creators: {
     get: (username: string) =>
       publicGet<CreatorResponse>(`/api/creators/${encodeURIComponent(username)}`),
+    getBatch: (usernames: string[]) =>
+      post<{ creators: Record<string, CreatorResponse> }>("/api/business/saved-creators/batch", { usernames }),
+    logView: (username: string) =>
+      post<{ counted: boolean }>(`/api/creators/${encodeURIComponent(username)}/view`, {}),
+  },
+
+  /** Business — saved creators */
+  saved: {
+    list: () => get<{ saved: SavedCreator[] }>("/api/business/saved-creators"),
+    save: (creator_username: string) =>
+      post<{ saved: boolean }>("/api/business/saved-creators", { creator_username }),
+    unsave: (creator_username: string) =>
+      del<{ saved: boolean }>("/api/business/saved-creators", { creator_username }),
+  },
+
+  /** Business — discover search */
+  discover: {
+    search: (params: {
+      q?: string; category?: string; creator_stage?: string; sort_by?: string;
+      min_subs?: number; max_subs?: number;
+      min_avg_views?: number; max_avg_views?: number;
+      min_videos?: number; max_videos?: number;
+      limit?: number; offset?: number;
+    } = {}) => {
+      const qs = new URLSearchParams();
+      const add = (k: string, v: string | number | undefined) => { if (v !== undefined && v !== "") qs.set(k, String(v)); };
+      add("q",             params.q);
+      add("category",      params.category);
+      add("creator_stage", params.creator_stage);
+      add("sort_by",       params.sort_by);
+      add("min_subs",      params.min_subs);
+      add("max_subs",      params.max_subs);
+      add("min_avg_views", params.min_avg_views);
+      add("max_avg_views", params.max_avg_views);
+      add("min_videos",    params.min_videos);
+      add("max_videos",    params.max_videos);
+      add("limit",         params.limit);
+      add("offset",        params.offset);
+      return get<DiscoverResponse>(`/api/business/discover?${qs}`);
+    },
   },
 
   /** Auth helpers */

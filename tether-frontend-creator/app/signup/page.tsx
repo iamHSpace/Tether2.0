@@ -12,16 +12,28 @@ const GOOGLE_SVG = (
   </svg>
 );
 
-const BUSINESS_URL = process.env.NEXT_PUBLIC_BUSINESS_URL ?? "https://tether-frontend-business.vercel.app";
+type UserType = "creator" | "business";
 
 export default function SignupPage() {
   const [step, setStep]         = useState<"type" | "form">("type");
+  const [userType, setUserType] = useState<UserType>("creator");
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm]   = useState("");
+  const [company, setCompany]   = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [done, setDone]         = useState(false);
+
+  function pickType(type: UserType) {
+    setUserType(type);
+    setStep("form");
+  }
+
+  function handleGoogleClick() {
+    // Store intended role so the dashboard can set it in user_metadata after OAuth
+    localStorage.setItem("tether_intended_user_type", userType);
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -29,11 +41,29 @@ export default function SignupPage() {
     if (password.length < 6)  { setError("Password must be at least 6 characters."); return; }
 
     setLoading(true); setError(null);
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
-    if (error) { setError(error.message); setLoading(false); return; }
-    if (data.session) { window.location.href = "/onboarding"; }
-    else { setDone(true); setLoading(false); }
+
+    const metadata: Record<string, string> = { user_type: userType };
+    if (userType === "business" && company.trim()) {
+      metadata.company_name = company.trim();
+    }
+
+    const { data, error: signupError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: metadata },
+    });
+
+    if (signupError) { setError(signupError.message); setLoading(false); return; }
+
+    if (data.session) {
+      window.location.href = userType === "business" ? "/discover" : "/onboarding";
+    } else {
+      setDone(true);
+      setLoading(false);
+    }
   }
+
+  // ── Type selection ────────────────────────────────────────────────────────────
 
   if (step === "type") {
     return (
@@ -49,8 +79,8 @@ export default function SignupPage() {
             <p className="text-gray-500 text-sm mt-1">Who are you signing up as?</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => setStep("form")}
-              className="card p-6 text-left hover:border-brand-300 hover:shadow-card-hover transition-all duration-150 group border-2 border-transparent">
+            <button onClick={() => pickType("creator")}
+              className="card p-6 text-left hover:border-brand-300 hover:shadow-card-hover transition-all duration-150 border-2 border-transparent">
               <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mb-4">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="23,7 16,12 23,17 23,7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
@@ -59,8 +89,8 @@ export default function SignupPage() {
               <h3 className="font-bold text-gray-900 mb-1">Creator</h3>
               <p className="text-xs text-gray-500 leading-relaxed">I create content and want to showcase my verified metrics to brands.</p>
             </button>
-            <a href={`${BUSINESS_URL}/signup`}
-              className="card p-6 text-left hover:border-brand-300 hover:shadow-card-hover transition-all duration-150 group border-2 border-transparent">
+            <button onClick={() => pickType("business")}
+              className="card p-6 text-left hover:border-brand-300 hover:shadow-card-hover transition-all duration-150 border-2 border-transparent">
               <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-4">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
@@ -68,7 +98,7 @@ export default function SignupPage() {
               </div>
               <h3 className="font-bold text-gray-900 mb-1">Business</h3>
               <p className="text-xs text-gray-500 leading-relaxed">I&apos;m a marketing manager or agency looking for verified creators to partner with.</p>
-            </a>
+            </button>
           </div>
           <p className="text-center text-sm text-gray-500 mt-6">
             Already have an account?{" "}
@@ -78,6 +108,8 @@ export default function SignupPage() {
       </div>
     );
   }
+
+  // ── Email confirmation sent ────────────────────────────────────────────────────
 
   if (done) {
     return (
@@ -96,17 +128,26 @@ export default function SignupPage() {
     );
   }
 
+  // ── Signup form ───────────────────────────────────────────────────────────────
+
+  const isCreator = userType === "creator";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-white">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Join Tether</h1>
-          <p className="text-gray-500 text-sm mt-1">Your verified creator profile starts here</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {isCreator ? "Your verified creator profile starts here" : "Find and connect with verified creators"}
+          </p>
+          <button onClick={() => setStep("type")} className="mt-2 text-xs text-brand-600 hover:text-brand-700 font-medium">
+            ← Change account type
+          </button>
         </div>
 
         <div className="card p-8">
@@ -116,13 +157,9 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/*
-            Google OAuth — same Route Handler pattern as login.
-            A plain <a> triggers a full browser navigation to /api/auth/login/google
-            which returns a 302 to Google with Set-Cookie for the PKCE verifier.
-          */}
           <a
             href="/api/auth/login/google"
+            onClick={handleGoogleClick}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5"
           >
             {GOOGLE_SVG}
@@ -136,6 +173,13 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSignup} className="space-y-4">
+            {!isCreator && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company name</label>
+                <input type="text" value={company} onChange={e => setCompany(e.target.value)}
+                  disabled={loading} placeholder="Acme Marketing" className="input" />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}

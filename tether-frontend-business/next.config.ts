@@ -13,9 +13,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source:      "/c/:username",
-        destination: `${CREATOR_URL}/c/:username`,
-        permanent:   false,
+        source:      "/:path*",
+        destination: `${CREATOR_URL}/:path*`,
+        permanent:   true,
       },
     ];
   },

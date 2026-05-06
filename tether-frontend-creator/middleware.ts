@@ -1,15 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Paths that don't require authentication.
-// /api/auth  — OAuth callback must be reachable before a session exists.
-// /c/        — Public creator profile pages (e.g. /c/username)
-const PUBLIC_PATHS = ["/login", "/signup", "/onboarding", "/auth", "/api/auth", "/c/"];
-
-// Paths that logged-in users should be bounced away from (to /dashboard).
-// /c/ is intentionally excluded — authenticated users should still be able
-// to view public creator profiles.
-const AUTH_REDIRECT_PATHS = ["/login", "/signup", "/onboarding", "/auth"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/auth", "/c/"];
+const AUTH_REDIRECT_PATHS = ["/login", "/signup", "/auth"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -37,16 +30,25 @@ export async function middleware(request: NextRequest) {
   const isPublicPath = PUBLIC_PATHS.some(p => path.startsWith(p));
 
   if (!user && !isPublicPath) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Redirect logged-in users away from auth pages and the root landing page.
-  // Public creator profiles (/c/*) are always viewable regardless of session.
-  const isAuthPage = path === "/" || AUTH_REDIRECT_PATHS.some(p => path.startsWith(p));
-  if (user && isAuthPage) {
-    const dashboardUrl = new URL("/dashboard", request.url);
-    return NextResponse.redirect(dashboardUrl);
+  if (user) {
+    const userType = (user.user_metadata?.user_type as string | undefined) ?? "creator";
+    const isAuthPage = path === "/" || AUTH_REDIRECT_PATHS.some(p => path.startsWith(p));
+
+    // Role guards — wrong-role users get bounced to their home
+    if (userType === "business" && (path.startsWith("/dashboard") || path.startsWith("/onboarding"))) {
+      return NextResponse.redirect(new URL("/discover", request.url));
+    }
+    if (userType === "creator" && (path.startsWith("/discover") || path.startsWith("/saved"))) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    // Redirect away from auth/landing pages to role-appropriate home
+    if (isAuthPage) {
+      return NextResponse.redirect(new URL(userType === "business" ? "/discover" : "/dashboard", request.url));
+    }
   }
 
   return response;
