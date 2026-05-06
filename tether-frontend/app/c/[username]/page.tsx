@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/Icons";
 import { ShareButton } from "./_components/ShareButton";
 import { VideoList } from "./_components/VideoList";
+import { TrackView } from "./_components/TrackView";
 
 export const revalidate = 300;
 
@@ -261,6 +262,7 @@ export default async function CreatorPublicProfile(
         </div>
       </nav>
 
+      <TrackView username={username} />
       <main className="max-w-3xl mx-auto px-6 py-10 space-y-5">
 
         {/* Hero */}
