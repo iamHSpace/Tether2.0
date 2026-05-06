@@ -176,11 +176,13 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Load every connected YouTube account
+  // Load YouTube accounts for creators active in the last 30 days
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: tokens, error: tokensError } = await supabase
     .from("platform_tokens")
-    .select("id, user_id, access_token, refresh_token, token_expiry, metadata")
-    .eq("platform", "youtube");
+    .select("id, user_id, access_token, refresh_token, token_expiry, metadata, profiles!inner(last_active_at)")
+    .eq("platform", "youtube")
+    .gte("profiles.last_active_at", cutoff);
 
   if (tokensError) {
     console.error("Failed to load platform_tokens:", tokensError.message);

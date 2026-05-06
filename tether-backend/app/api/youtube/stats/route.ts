@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
         : Promise.resolve([]),
     ]);
 
-    // 5. Persist a snapshot — fire-and-forget (never block the response)
+    // 5. Persist a snapshot + touch last_active_at — fire-and-forget (never block the response)
     adminClient
       .from("metric_snapshots")
       .insert({
@@ -87,6 +87,14 @@ export async function GET(req: NextRequest) {
       })
       .then(({ error }) => {
         if (error) console.error("[youtube/stats] snapshot insert failed:", error.message);
+      });
+
+    adminClient
+      .from("profiles")
+      .update({ last_active_at: new Date().toISOString() })
+      .eq("id", user.id)
+      .then(({ error }) => {
+        if (error) console.error("[youtube/stats] last_active_at update failed:", error.message);
       });
 
     return NextResponse.json({ channel, videos, connectedAt: row.created_at });
