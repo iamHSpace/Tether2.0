@@ -162,8 +162,14 @@ Max 10 active keys per user.
 ### v1 Public API (API-key authenticated via `Authorization: Bearer tth_<key>`)
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/v1/creators` | Search creators with metrics (same filters as discover) |
-| GET | `/api/v1/me` | Own profile + platforms + snapshots for the key's owner |
+| GET | `/api/v1/creators` | Search creators with metrics |
+| GET | `/api/v1/me` | Own business profile |
+| PATCH | `/api/v1/me` | Update own business profile (`company_name`, `bio`, `website` only) |
+| GET | `/api/v1/saved` | List own saved creators |
+| POST | `/api/v1/saved` | Save a creator `{ creator_username }` |
+| DELETE | `/api/v1/saved` | Unsave a creator `{ creator_username }` |
+
+**Ownership rule:** Every write is filtered by `userId` from `requireApiKey()`. A developer key can only modify records owned by that business — structurally impossible to touch another organisation's data.
 
 **API key guard:** `tether-backend/lib/apiKeyGuard.ts` → `requireApiKey()` hashes the bearer token (SHA-256), looks up `api_keys` table, updates `last_used_at`.
 

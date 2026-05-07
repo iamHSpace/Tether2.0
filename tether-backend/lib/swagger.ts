@@ -557,21 +557,85 @@ Create an API key in the Developer tab of your settings page.
       "/api/v1/me": {
         get: {
           tags: ["v1"],
-          summary: "Get own profile",
-          description: "Returns the full profile and latest metrics for the creator who owns the API key used to authenticate.",
+          summary: "Get own business profile",
+          description: "Returns the business profile for the organisation whose API key is used.",
           security: [{ apiKey: [] }],
           responses: {
-            "200": {
-              description: "Creator profile with platform connections and metric snapshots",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/V1MeResponse" },
-                },
-              },
-            },
+            "200": { description: "Business profile", content: { "application/json": { schema: { type: "object", properties: { profile: { $ref: "#/components/schemas/V1BusinessProfile" } } } } } },
             "401": { description: "Missing or invalid API key" },
             "403": { description: "API key revoked or expired" },
             "404": { description: "Profile not found" },
+          },
+        },
+        patch: {
+          tags: ["v1"],
+          summary: "Update own business profile",
+          description: `
+Updates the authenticated business's own profile. Only the fields you supply are changed.
+
+**Ownership guarantee:** The update is filtered by the API key owner's \`user_id\` — it is structurally impossible to modify another organisation's profile.
+
+Editable fields: \`company_name\`, \`bio\`, \`website\`
+          `.trim(),
+          security: [{ apiKey: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    company_name: { type: "string", nullable: true, example: "Acme Corp" },
+                    bio:          { type: "string", nullable: true, example: "We work with tech creators." },
+                    website:      { type: "string", nullable: true, example: "https://acme.com" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Updated profile", content: { "application/json": { schema: { type: "object", properties: { profile: { $ref: "#/components/schemas/V1BusinessProfile" } } } } } },
+            "400": { description: "No editable fields or invalid type" },
+            "401": { description: "Missing or invalid API key" },
+            "403": { description: "API key revoked or expired" },
+          },
+        },
+      },
+
+      "/api/v1/saved": {
+        get: {
+          tags: ["v1"],
+          summary: "List saved creators",
+          description: "Returns the authenticated business's saved creator list. Only returns rows owned by the key's organisation.",
+          security: [{ apiKey: [] }],
+          responses: {
+            "200": { description: "Saved creators", content: { "application/json": { schema: { type: "object", properties: { saved: { type: "array", items: { type: "object", properties: { creator_username: { type: "string" }, saved_at: { type: "string", format: "date-time" } } } } } } } } },
+            "401": { description: "Missing or invalid API key" },
+          },
+        },
+        post: {
+          tags: ["v1"],
+          summary: "Save a creator",
+          description: "Adds a creator to the authenticated business's saved list. Idempotent — safe to call multiple times.\n\n**Ownership guarantee:** `business_user_id` is always set to the key owner's ID.",
+          security: [{ apiKey: [] }],
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["creator_username"], properties: { creator_username: { type: "string", example: "anshulsingh" } } } } } },
+          responses: {
+            "201": { description: "Creator saved" },
+            "400": { description: "Missing creator_username" },
+            "401": { description: "Missing or invalid API key" },
+            "404": { description: "Creator not found" },
+          },
+        },
+        delete: {
+          tags: ["v1"],
+          summary: "Unsave a creator",
+          description: "Removes a creator from the authenticated business's saved list.\n\n**Ownership guarantee:** deletes only where `business_user_id` = key owner.",
+          security: [{ apiKey: [] }],
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["creator_username"], properties: { creator_username: { type: "string", example: "anshulsingh" } } } } } },
+          responses: {
+            "200": { description: "Creator unsaved" },
+            "400": { description: "Missing creator_username" },
+            "401": { description: "Missing or invalid API key" },
           },
         },
       },
@@ -784,6 +848,23 @@ Create an API key in the Developer tab of your settings page.
         },
 
         // ── v1 API ────────────────────────────────────────────────────────────
+        V1BusinessProfile: {
+          type: "object",
+          description: "Business profile fields returned by GET /api/v1/me and PATCH /api/v1/me",
+          properties: {
+            id:           { type: "string", format: "uuid" },
+            username:     { type: "string", nullable: true },
+            company_name: { type: "string", nullable: true },
+            full_name:    { type: "string", nullable: true },
+            bio:          { type: "string", nullable: true },
+            website:      { type: "string", nullable: true },
+            avatar_url:   { type: "string", nullable: true },
+            user_type:    { type: "string", example: "business" },
+            updated_at:   { type: "string", format: "date-time" },
+          },
+          required: ["id", "user_type"],
+        },
+
         V1Creator: {
           type: "object",
           description: "Creator profile with latest YouTube metrics",
