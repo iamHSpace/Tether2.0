@@ -4,6 +4,70 @@ Creator intelligence platform. Creators connect social accounts, get a unified a
 
 ---
 
+## Feature inventory
+
+### Creator features
+| Feature | Where |
+|---|---|
+| Email signup / Google OAuth | `/signup`, `/login` |
+| Multi-step onboarding wizard | `/onboarding` |
+| Connect YouTube account (OAuth, auto-refresh tokens) | Dashboard → Connect YouTube |
+| Connect Instagram account (OAuth, long-lived token) | Dashboard → Connect Instagram |
+| YouTube analytics dashboard (subscribers, total views, video count, avg views, recent videos) | `/dashboard` |
+| Metric visibility toggles (choose what businesses can see on public profile) | `/dashboard` |
+| Profile view stats widget (this week / last week / all time + 7-day daily chart) | `/dashboard` |
+| Shareable verified public profile link `/c/:username` | `/dashboard` |
+| Edit profile (username, full name, bio, website, avatar URL, category, creator stage) | `/settings` |
+| Browse & search business profiles | `/businesses` |
+| Real-time messaging with businesses | `/messages` |
+| Daily automated YouTube snapshot (metrics stored for history) | Background cron 00:05 UTC |
+
+### Business features
+| Feature | Where |
+|---|---|
+| Email signup / Google OAuth | `/signup`, `/login` |
+| Discover creators — search by name, filter by category, stage, subscriber range, avg views | `/discover` |
+| Save / unsave creators (bookmarked list) | `/discover`, `/saved` |
+| Saved creator list with enriched live metrics | `/saved` |
+| View creator public profiles | `/c/:username` |
+| Real-time messaging with creators | `/messages` |
+| Edit business profile (company name, bio, website, username) | `/settings` |
+| Generate & revoke API keys (max 10 active) | `/settings` → Developer tab |
+| Interactive API documentation | `/docs` |
+
+### Developer features (business accounts with API keys)
+| Feature | Endpoint |
+|---|---|
+| Search creator profiles with metrics | `GET /api/v1/creators` |
+| Get own business profile | `GET /api/v1/me` |
+| List own saved creators | `GET /api/v1/saved` |
+| Update own business profile (company_name, bio, website) | `PATCH /api/v1/me` |
+| Save a creator | `POST /api/v1/saved` |
+| Unsave a creator | `DELETE /api/v1/saved` |
+
+All write operations are scoped to the API key owner's `user_id` — cannot modify another organisation's records.
+
+### Admin features (is_admin = true)
+| Feature | Where |
+|---|---|
+| User table — search, filter by role/suspended, paginate | `/admin/users` |
+| Suspend / unsuspend any user | `/admin/users` |
+| Change user role or admin flag | `/admin/users` |
+| Hard-delete a user | `/admin/users` |
+| Platform health — per-creator YouTube token status, snapshot staleness | `/admin/health` |
+| Manually trigger daily snapshot for all active creators | `/admin/health` |
+| Platform analytics — total views, viewer type, top countries, device, referrer, daily chart (7/30/90d) | `/admin/analytics` |
+| Moderate profiles (suspend/unsuspend) | `/admin/moderation` |
+| Read-only conversation thread viewer | `/admin/moderation` |
+
+### Public / unauthenticated features
+| Feature | Where |
+|---|---|
+| View creator public profile (ISR, revalidates every 5 min) | `/c/:username` |
+| API documentation (Swagger UI) | `/docs` |
+
+---
+
 ## Repo layout
 
 ```
