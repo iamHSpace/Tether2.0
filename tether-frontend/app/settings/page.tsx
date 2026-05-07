@@ -215,9 +215,12 @@ export default function SettingsPage() {
         </header>
 
         <div className="p-8 max-w-3xl">
-          {/* Tab nav — hide Connections for business users */}
+          {/* Tab nav — hide Connections for business, Developer for creators */}
           <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6 w-fit">
-            {TABS.filter(t => !(userType === "business" && t.id === "connections")).map(({ id, label, icon: Icon }) => (
+            {TABS.filter(t =>
+              !(userType === "business" && t.id === "connections") &&
+              !(userType === "creator"  && t.id === "developer")
+            ).map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"

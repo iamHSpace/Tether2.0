@@ -9,9 +9,19 @@ import { generateKey } from "@/lib/apiKeyGuard";
  * List all API keys for the authenticated user.
  * Raw keys are never returned — only metadata + prefix for display.
  */
+async function requireBusiness(userId: string): Promise<boolean> {
+  const { data } = await adminClient
+    .from("profiles")
+    .select("user_type")
+    .eq("id", userId)
+    .single();
+  return data?.user_type === "business";
+}
+
 export async function GET(req: NextRequest) {
   const user = await getUserFromBearer(req.headers.get("Authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await requireBusiness(user.id)) return NextResponse.json({ error: "API keys are only available to business accounts" }, { status: 403 });
 
   const { data, error } = await adminClient
     .from("api_keys")
@@ -34,6 +44,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getUserFromBearer(req.headers.get("Authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await requireBusiness(user.id)) return NextResponse.json({ error: "API keys are only available to business accounts" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";

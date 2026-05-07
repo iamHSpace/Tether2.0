@@ -8,9 +8,19 @@ import { supabase as adminClient } from "@/lib/supabase";
  * Revokes an API key (sets is_active = false).
  * Users can only revoke their own keys.
  */
+async function requireBusiness(userId: string): Promise<boolean> {
+  const { data } = await adminClient
+    .from("profiles")
+    .select("user_type")
+    .eq("id", userId)
+    .single();
+  return data?.user_type === "business";
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUserFromBearer(req.headers.get("Authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await requireBusiness(user.id)) return NextResponse.json({ error: "API keys are only available to business accounts" }, { status: 403 });
 
   const { id } = await params;
 
