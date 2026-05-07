@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck, IconCode, IconKey, IconCopy } from "@/components/ui/Icons";
-import type { ApiKey } from "@/lib/api";
+import type { ApiKey, UserSubscription, SubscriptionPlan } from "@/lib/api";
 
 const CREATOR_CATEGORIES = [
   "Gaming", "Tech & Science", "Education", "Lifestyle", "Vlog",
@@ -26,14 +26,24 @@ interface SettingsProfile {
   category: string;
 }
 
-type Tab = "profile" | "connections" | "notifications" | "account" | "developer";
+type Tab = "profile" | "connections" | "notifications" | "account" | "developer" | "subscription";
+
+function IconCreditCard({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+      <line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  );
+}
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "profile",       label: "Profile",       icon: IconUser    },
-  { id: "connections",   label: "Connections",   icon: IconLink    },
-  { id: "notifications", label: "Notifications", icon: IconBell    },
-  { id: "account",       label: "Account",       icon: IconShield  },
-  { id: "developer",     label: "Developer",     icon: IconCode    },
+  { id: "profile",       label: "Profile",       icon: IconUser        },
+  { id: "connections",   label: "Connections",   icon: IconLink        },
+  { id: "notifications", label: "Notifications", icon: IconBell        },
+  { id: "account",       label: "Account",       icon: IconShield      },
+  { id: "subscription",  label: "Subscription",  icon: IconCreditCard  },
+  { id: "developer",     label: "Developer",     icon: IconCode        },
 ];
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
@@ -50,6 +60,13 @@ export default function SettingsPage() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const [usernameHint, setUsernameHint]     = useState<string>("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Subscription tab state
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [effectivePlan, setEffectivePlan] = useState<SubscriptionPlan | null>(null);
+  const [subLoading, setSubLoading]     = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [portalLoading, setPortalLoading]     = useState(false);
 
   // Developer tab state
   const [apiKeys, setApiKeys]           = useState<ApiKey[]>([]);
@@ -89,6 +106,15 @@ export default function SettingsPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (tab !== "subscription") return;
+    setSubLoading(true);
+    api.subscriptions.current()
+      .then(r => { setSubscription(r.subscription); setEffectivePlan(r.effective_plan); })
+      .catch(() => {})
+      .finally(() => setSubLoading(false));
+  }, [tab]);
 
   useEffect(() => {
     if (tab !== "developer") return;
@@ -219,7 +245,8 @@ export default function SettingsPage() {
           <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6 w-fit">
             {TABS.filter(t =>
               !(userType === "business" && t.id === "connections") &&
-              !(userType === "creator"  && t.id === "developer")
+              !(userType === "creator"  && t.id === "developer")  &&
+              !(userType === "creator"  && t.id === "subscription")
             ).map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -489,6 +516,82 @@ export default function SettingsPage() {
                       <IconTrash size={14} /> Delete my account
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Subscription tab */}
+          {tab === "subscription" && (
+            <div className="space-y-5">
+              <div className="card p-6">
+                <h2 className="font-semibold text-gray-900 mb-1">Your Subscription</h2>
+                <p className="text-sm text-gray-500 mb-4">Manage your plan and billing.</p>
+
+                {subLoading ? (
+                  <div className="text-sm text-gray-400">Loading…</div>
+                ) : (
+                  <>
+                    {/* Current plan card */}
+                    <div className="rounded-xl border border-gray-200 p-4 mb-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-lg font-bold text-gray-900">{effectivePlan?.name ?? "Starter"}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                          subscription?.status === "active" ? "bg-green-100 text-green-700" :
+                          subscription?.status === "past_due" ? "bg-red-100 text-red-700" :
+                          "bg-gray-100 text-gray-600"
+                        }`}>
+                          {subscription?.status ?? "Free"}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-1">
+                        {effectivePlan?.is_free
+                          ? "You are on the free Starter plan."
+                          : effectivePlan?.is_enterprise
+                            ? "Enterprise plan — contact your account manager."
+                            : `$${((effectivePlan?.price_cents ?? 0) / 100).toFixed(0)} / ${effectivePlan?.billing_period}`}
+                      </div>
+                      {subscription?.current_period_end && (
+                        <div className="text-xs text-gray-400">
+                          {subscription.cancel_at_period_end
+                            ? `Cancels on ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                            : `Renews on ${new Date(subscription.current_period_end).toLocaleDateString()}`}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 flex-wrap">
+                      <a
+                        href="/pricing"
+                        className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 transition-colors"
+                      >
+                        {effectivePlan?.is_free ? "Upgrade Plan" : "Change Plan"}
+                      </a>
+                      {subscription && !subscription.plan?.is_free && (
+                        <button
+                          disabled={portalLoading}
+                          onClick={async () => {
+                            setPortalLoading(true);
+                            try {
+                              const r = await api.subscriptions.portal();
+                              if (r.url) window.location.href = r.url;
+                            } catch { /* non-fatal */ } finally { setPortalLoading(false); }
+                          }}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        >
+                          {portalLoading ? "Loading…" : "Manage Billing"}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="card p-6">
+                <h3 className="font-semibold text-gray-900 mb-1">Need more?</h3>
+                <p className="text-sm text-gray-500 mb-3">Compare all plans on our pricing page or contact us for an Enterprise quote.</p>
+                <div className="flex gap-3">
+                  <a href="/pricing" className="text-sm font-medium text-brand-600 hover:underline">View pricing →</a>
                 </div>
               </div>
             </div>

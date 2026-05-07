@@ -41,11 +41,21 @@ function IconActivity({ size = 16 }: { size?: number }) {
   );
 }
 
+function IconCreditCard({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+      <line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  );
+}
+
 const ADMIN_NAV = [
-  { href: "/admin/users",      label: "Users",           Icon: IconUsers      },
-  { href: "/admin/health",     label: "Platform Health", Icon: IconActivity   },
-  { href: "/admin/analytics",  label: "Analytics",       Icon: IconBarChart   },
-  { href: "/admin/moderation", label: "Moderation",      Icon: IconFlag       },
+  { href: "/admin/users",         label: "Users",           Icon: IconUsers      },
+  { href: "/admin/health",        label: "Platform Health", Icon: IconActivity   },
+  { href: "/admin/analytics",     label: "Analytics",       Icon: IconBarChart   },
+  { href: "/admin/moderation",    label: "Moderation",      Icon: IconFlag       },
+  { href: "/admin/subscriptions", label: "Subscriptions",   Icon: IconCreditCard },
 ];
 
 interface Props {

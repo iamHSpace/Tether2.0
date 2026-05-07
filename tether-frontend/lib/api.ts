@@ -87,6 +87,22 @@ async function del<T>(path: string, body?: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Authenticated PATCH */
+async function patch_<T>(path: string, body: unknown): Promise<T> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError((data as { error?: string }).error ?? `Request failed: ${res.status}`, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
 /** Unauthenticated GET (public endpoints) */
 async function publicGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { next: { revalidate: 300 } } as RequestInit);
@@ -414,6 +430,27 @@ export const api = {
       post<{ key: ApiKeyCreated }>("/api/developer/keys", { name, expires_at }),
     revokeKey: (id: string) => del<{ revoked: boolean }>(`/api/developer/keys/${id}`),
   },
+
+  /** Subscriptions */
+  subscriptions: {
+    plans: () => get<{ plans: SubscriptionPlan[]; feature_definitions: FeatureDefinition[] }>("/api/subscriptions/plans"),
+    current: () => get<{ subscription: UserSubscription | null; effective_plan: SubscriptionPlan | null }>("/api/subscriptions/current"),
+    checkout: (plan_id: string) => post<{ url: string }>("/api/stripe/checkout", { plan_id }),
+    portal: () => post<{ url: string }>("/api/stripe/portal", {}),
+  },
+
+  /** Admin — subscription + settings management */
+  adminSubscriptions: {
+    plans: () => get<{ plans: (SubscriptionPlan & { features: PlanFeature[] })[] }>("/api/admin/subscriptions/plans"),
+    updatePlan: (id: string, patch: { price_cents?: number; stripe_price_id?: string; is_active?: boolean }) =>
+      patch_<{ plan: SubscriptionPlan }>("/api/admin/subscriptions/plans", { id, ...patch }),
+    features: () => get<{ features: FeatureDefinition[] }>("/api/admin/subscriptions/features"),
+    updateFeature: (row: { plan_id: string; feature_key: string; is_enabled?: boolean; rate_limit?: number | null; rate_period?: string }) =>
+      put<{ feature: PlanFeature }>("/api/admin/subscriptions/features", row),
+    settings: () => get<{ settings: PlatformSetting[] }>("/api/admin/settings"),
+    updateSetting: (key: string, value: string) =>
+      put<{ setting: PlatformSetting }>("/api/admin/settings", { key, value }),
+  },
 };
 
 // ── Admin types ───────────────────────────────────────────────────────────────
@@ -489,4 +526,56 @@ export interface ApiKey {
 
 export interface ApiKeyCreated extends ApiKey {
   raw_key: string;
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  user_type: "creator" | "business";
+  billing_period: "monthly" | "annual";
+  price_cents: number;
+  stripe_price_id: string | null;
+  is_active: boolean;
+  is_enterprise: boolean;
+  is_free: boolean;
+}
+
+export interface FeatureDefinition {
+  key: string;
+  label: string;
+  description: string | null;
+  user_type: string;
+  category: string | null;
+  sort_order: number;
+}
+
+export interface PlanFeature {
+  plan_id: string;
+  feature_key: string;
+  is_enabled: boolean;
+  rate_limit: number | null;
+  rate_period: "hour" | "day" | "month";
+}
+
+export interface UserSubscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: "active" | "cancelled" | "past_due" | "trialing" | "paused";
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+  plan?: SubscriptionPlan;
+}
+
+export interface PlatformSetting {
+  key: string;
+  value: string;
+  updated_at: string;
 }
