@@ -83,6 +83,8 @@ Tether2.0/
 
 Both deployed on Vercel. Backend holds the Supabase service-role key (bypasses RLS). Frontend uses only the anon key in the browser.
 
+**Auto-deploy:** GitHub Actions (`.github/workflows/deploy.yml`) deploys both apps to Vercel production on every push to `main`. Required GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_FRONTEND`, `VERCEL_PROJECT_ID_BACKEND`.
+
 ---
 
 ## Role system
@@ -116,7 +118,7 @@ supabase.auth.signUp({ options: { data: { user_type: "creator" | "business" } } 
 
 | Route | Who | Purpose |
 |---|---|---|
-| `/login` | Public | Email or username + Google OAuth; Creator/Business toggle |
+| `/login` | Public | Email **or username** + Google OAuth; Creator/Business toggle. Username resolved via `POST /api/auth/resolve-email` on backend. |
 | `/signup` | Public | Role picker → form (company_name field for business) |
 | `/onboarding` | Creator | Multi-step profile setup wizard |
 | `/dashboard` | Creator | YouTube analytics, metric visibility toggles, public profile link |
@@ -590,6 +592,10 @@ cd tether-frontend && npm run dev   # → http://127.0.0.1:3001
 > Cookie domain is bound to the origin; mixing `localhost` and `127.0.0.1` will break session reads in middleware.
 
 ---
+
+## Admin account
+
+Production admin user: `hspace` / `hspace@tether.so` (password: `hspace`), `is_admin: true`.
 
 ## Promoting an admin (one-time)
 
