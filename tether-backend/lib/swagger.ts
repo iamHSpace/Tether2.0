@@ -80,6 +80,15 @@ All JSON errors follow the shape:
         name: "YouTube",
         description: "YouTube OAuth connection and channel analytics",
       },
+      {
+        name: "v1",
+        description:
+          "Public developer API — authenticated with an API key (`Authorization: Bearer tth_<key>`). Create keys in the Developer tab of your settings page.",
+      },
+      {
+        name: "Developer",
+        description: "Manage API keys for the v1 public API. Requires a logged-in session.",
+      },
     ],
 
     // ─── Paths ────────────────────────────────────────────────────────────────
@@ -414,6 +423,158 @@ Returns the authenticated user's YouTube channel statistics and most recent vide
           },
         },
       },
+
+      // ── Developer: API keys ─────────────────────────────────────────────────
+
+      "/api/developer/keys": {
+        get: {
+          tags: ["Developer"],
+          summary: "List API keys",
+          description: "Returns all API keys for the authenticated user. Raw key values are never returned — only the prefix, name, and metadata.",
+          security: [{ sessionCookie: [] }],
+          responses: {
+            "200": {
+              description: "List of API keys",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      keys: { type: "array", items: { $ref: "#/components/schemas/ApiKey" } },
+                    },
+                  },
+                },
+              },
+            },
+            "401": { description: "Not authenticated" },
+          },
+        },
+        post: {
+          tags: ["Developer"],
+          summary: "Create API key",
+          description: "Creates a new API key. The raw key (`raw_key`) is returned **once** and cannot be retrieved again.",
+          security: [{ sessionCookie: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name"],
+                  properties: {
+                    name:       { type: "string", description: "Friendly name for this key", example: "My Dashboard" },
+                    expires_at: { type: "string", format: "date-time", description: "Optional expiry (ISO 8601). Omit for non-expiring key." },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "201": {
+              description: "Key created — includes the one-time raw key",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      key: { $ref: "#/components/schemas/ApiKeyCreated" },
+                    },
+                  },
+                },
+              },
+            },
+            "400": { description: "Validation error (missing name, name too long)" },
+            "401": { description: "Not authenticated" },
+            "429": { description: "Maximum of 10 active keys reached" },
+          },
+        },
+      },
+
+      "/api/developer/keys/{id}": {
+        delete: {
+          tags: ["Developer"],
+          summary: "Revoke API key",
+          description: "Permanently revokes an API key (`is_active = false`). The key cannot be re-activated.",
+          security: [{ sessionCookie: [] }],
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          ],
+          responses: {
+            "200": { description: "Key revoked", content: { "application/json": { schema: { type: "object", properties: { revoked: { type: "boolean" } } } } } },
+            "401": { description: "Not authenticated" },
+            "404": { description: "Key not found or already revoked" },
+          },
+        },
+      },
+
+      // ── v1 public API ───────────────────────────────────────────────────────
+
+      "/api/v1/creators": {
+        get: {
+          tags: ["v1"],
+          summary: "Search creators",
+          description: `
+Returns paginated creator profiles with their latest YouTube metrics.
+
+**Authentication:** \`Authorization: Bearer tth_<your_api_key>\`
+
+Create an API key in the Developer tab of your settings page.
+          `.trim(),
+          security: [{ apiKey: [] }],
+          parameters: [
+            { name: "q",            in: "query", schema: { type: "string" },  description: "Text search on username / full name" },
+            { name: "category",     in: "query", schema: { type: "string" },  description: "Filter by creator category" },
+            { name: "creator_stage",in: "query", schema: { type: "string" },  description: "Filter by stage (nano, micro, macro, mega)" },
+            { name: "sort_by",      in: "query", schema: { type: "string", enum: ["subscribers","avg_views","total_views","video_count"], default: "subscribers" }, description: "Sort field" },
+            { name: "limit",        in: "query", schema: { type: "integer", default: 20, maximum: 50 }, description: "Max results per page" },
+            { name: "offset",       in: "query", schema: { type: "integer", default: 0  }, description: "Pagination offset" },
+            { name: "min_subs",     in: "query", schema: { type: "integer" }, description: "Minimum subscriber count" },
+            { name: "max_subs",     in: "query", schema: { type: "integer" }, description: "Maximum subscriber count" },
+            { name: "min_avg_views",in: "query", schema: { type: "integer" }, description: "Minimum average views per video" },
+            { name: "max_avg_views",in: "query", schema: { type: "integer" }, description: "Maximum average views per video" },
+          ],
+          responses: {
+            "200": {
+              description: "Paginated creator list",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      creators: { type: "array", items: { $ref: "#/components/schemas/V1Creator" } },
+                      total:    { type: "integer" },
+                    },
+                  },
+                },
+              },
+            },
+            "401": { description: "Missing or invalid API key" },
+            "403": { description: "API key revoked or expired" },
+          },
+        },
+      },
+
+      "/api/v1/me": {
+        get: {
+          tags: ["v1"],
+          summary: "Get own profile",
+          description: "Returns the full profile and latest metrics for the creator who owns the API key used to authenticate.",
+          security: [{ apiKey: [] }],
+          responses: {
+            "200": {
+              description: "Creator profile with platform connections and metric snapshots",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/V1MeResponse" },
+                },
+              },
+            },
+            "401": { description: "Missing or invalid API key" },
+            "403": { description: "API key revoked or expired" },
+            "404": { description: "Profile not found" },
+          },
+        },
+      },
     },
 
     // ─── Components ───────────────────────────────────────────────────────────
@@ -425,6 +586,12 @@ Returns the authenticated user's YouTube channel statistics and most recent vide
           name: "sb-access-token",
           description:
             "Supabase session cookie. Set automatically after completing the Google OAuth PKCE login flow. Include cookies in your requests (browser does this automatically).",
+        },
+        apiKey: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "tth_<64-hex-chars>",
+          description: "Tether API key. Create one in the Developer tab of your settings page. Format: `tth_<64-hex-chars>`.",
         },
       },
 
@@ -584,6 +751,106 @@ Returns the authenticated user's YouTube channel statistics and most recent vide
             },
           },
           required: ["error"],
+        },
+
+        // ── API Keys ──────────────────────────────────────────────────────────
+        ApiKey: {
+          type: "object",
+          description: "An API key (raw key is never returned except on creation)",
+          properties: {
+            id:           { type: "string", format: "uuid" },
+            name:         { type: "string", description: "Friendly name", example: "My Dashboard" },
+            key_prefix:   { type: "string", description: "First 12 characters of the raw key", example: "tth_a1b2c3d4" },
+            created_at:   { type: "string", format: "date-time" },
+            last_used_at: { type: "string", format: "date-time", nullable: true },
+            expires_at:   { type: "string", format: "date-time", nullable: true },
+            is_active:    { type: "boolean" },
+          },
+          required: ["id", "name", "key_prefix", "created_at", "is_active"],
+        },
+
+        ApiKeyCreated: {
+          allOf: [
+            { $ref: "#/components/schemas/ApiKey" },
+            {
+              type: "object",
+              description: "API key as returned on creation — includes the one-time raw key",
+              properties: {
+                raw_key: { type: "string", description: "Full raw API key — shown once, cannot be retrieved again", example: "tth_a1b2c3d4..." },
+              },
+              required: ["raw_key"],
+            },
+          ],
+        },
+
+        // ── v1 API ────────────────────────────────────────────────────────────
+        V1Creator: {
+          type: "object",
+          description: "Creator profile with latest YouTube metrics",
+          properties: {
+            id:            { type: "string", format: "uuid" },
+            username:      { type: "string", example: "anshulsingh" },
+            full_name:     { type: "string", nullable: true, example: "Anshul Singh" },
+            bio:           { type: "string", nullable: true },
+            category:      { type: "string", nullable: true, example: "Tech & Science" },
+            creator_stage: { type: "string", nullable: true, example: "micro" },
+            avatar_url:    { type: "string", nullable: true },
+            updated_at:    { type: "string", format: "date-time" },
+            subscribers:   { type: "integer", example: 12400 },
+            total_views:   { type: "integer", example: 980000 },
+            video_count:   { type: "integer", example: 87 },
+            avg_views:     { type: "integer", example: 11264 },
+          },
+          required: ["id", "username", "subscribers", "total_views", "video_count", "avg_views"],
+        },
+
+        V1MeResponse: {
+          type: "object",
+          description: "Authenticated creator's own profile + platform connections + metrics",
+          properties: {
+            profile: {
+              type: "object",
+              description: "Creator profile row",
+              properties: {
+                id:               { type: "string", format: "uuid" },
+                username:         { type: "string", nullable: true },
+                full_name:        { type: "string", nullable: true },
+                bio:              { type: "string", nullable: true },
+                website:          { type: "string", nullable: true },
+                avatar_url:       { type: "string", nullable: true },
+                creator_stage:    { type: "string", nullable: true },
+                category:         { type: "string", nullable: true },
+                metric_visibility:{ type: "object", nullable: true },
+                updated_at:       { type: "string", format: "date-time" },
+              },
+            },
+            platforms: {
+              type: "array",
+              description: "Connected platforms",
+              items: {
+                type: "object",
+                properties: {
+                  platform:          { type: "string", example: "youtube" },
+                  platform_username: { type: "string", nullable: true },
+                  platform_user_id:  { type: "string", nullable: true },
+                  metadata:          { type: "object", nullable: true },
+                  created_at:        { type: "string", format: "date-time" },
+                },
+              },
+            },
+            snapshots: {
+              type: "object",
+              description: "Latest metric snapshot per platform, keyed by platform name",
+              additionalProperties: {
+                type: "object",
+                properties: {
+                  data:        { type: "object" },
+                  captured_at: { type: "string", format: "date-time" },
+                },
+              },
+            },
+          },
+          required: ["profile", "platforms", "snapshots"],
         },
       },
     },

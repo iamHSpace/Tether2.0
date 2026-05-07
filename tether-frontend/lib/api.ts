@@ -406,6 +406,14 @@ export const api = {
         { suspended }
       ),
   },
+
+  /** Developer API keys */
+  developer: {
+    keys: () => get<{ keys: ApiKey[] }>("/api/developer/keys"),
+    createKey: (name: string, expires_at?: string) =>
+      post<{ key: ApiKeyCreated }>("/api/developer/keys", { name, expires_at }),
+    revokeKey: (id: string) => del<{ revoked: boolean }>(`/api/developer/keys/${id}`),
+  },
 };
 
 // ── Admin types ───────────────────────────────────────────────────────────────
@@ -465,4 +473,20 @@ export interface AdminConversationDetail {
     business: { id: string; name: string; username: string | null };
   };
   messages: { id: string; sender_id: string; body: string; read_at: string | null; created_at: string }[];
+}
+
+// ── Developer / API keys ──────────────────────────────────────────────────────
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+}
+
+export interface ApiKeyCreated extends ApiKey {
+  raw_key: string;
 }

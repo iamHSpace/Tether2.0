@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
-import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck } from "@/components/ui/Icons";
+import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck, IconCode, IconKey, IconCopy } from "@/components/ui/Icons";
+import type { ApiKey } from "@/lib/api";
 
 const CREATOR_CATEGORIES = [
   "Gaming", "Tech & Science", "Education", "Lifestyle", "Vlog",
@@ -25,13 +26,14 @@ interface SettingsProfile {
   category: string;
 }
 
-type Tab = "profile" | "connections" | "notifications" | "account";
+type Tab = "profile" | "connections" | "notifications" | "account" | "developer";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "profile",       label: "Profile",       icon: IconUser    },
-  { id: "connections",   label: "Connections",   icon: IconLink   },
+  { id: "connections",   label: "Connections",   icon: IconLink    },
   { id: "notifications", label: "Notifications", icon: IconBell    },
   { id: "account",       label: "Account",       icon: IconShield  },
+  { id: "developer",     label: "Developer",     icon: IconCode    },
 ];
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
@@ -48,6 +50,16 @@ export default function SettingsPage() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const [usernameHint, setUsernameHint]     = useState<string>("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Developer tab state
+  const [apiKeys, setApiKeys]           = useState<ApiKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [newKeyName, setNewKeyName]     = useState("");
+  const [newKeyExpiry, setNewKeyExpiry] = useState("");
+  const [creatingKey, setCreatingKey]   = useState(false);
+  const [newRawKey, setNewRawKey]       = useState<string | null>(null);
+  const [copiedKey, setCopiedKey]       = useState(false);
+  const [revokingId, setRevokingId]     = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -77,6 +89,43 @@ export default function SettingsPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (tab !== "developer") return;
+    setApiKeysLoading(true);
+    api.developer.keys()
+      .then(r => setApiKeys(r.keys))
+      .catch(() => {})
+      .finally(() => setApiKeysLoading(false));
+  }, [tab]);
+
+  async function handleCreateKey(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newKeyName.trim()) return;
+    setCreatingKey(true);
+    setNewRawKey(null);
+    try {
+      const { key } = await api.developer.createKey(newKeyName.trim(), newKeyExpiry || undefined);
+      setNewRawKey(key.raw_key);
+      setNewKeyName(""); setNewKeyExpiry("");
+      setApiKeys(prev => [key, ...prev]);
+    } catch { /* non-fatal */ } finally { setCreatingKey(false); }
+  }
+
+  async function handleRevokeKey(id: string) {
+    setRevokingId(id);
+    try {
+      await api.developer.revokeKey(id);
+      setApiKeys(prev => prev.filter(k => k.id !== id));
+    } catch { /* non-fatal */ } finally { setRevokingId(null); }
+  }
+
+  function copyKey(key: string) {
+    navigator.clipboard.writeText(key).then(() => {
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    });
+  }
 
   function handleUsernameChange(raw: string) {
     const val = raw.toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -438,6 +487,155 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Developer tab */}
+          {tab === "developer" && (
+            <div className="space-y-5">
+              {/* Intro */}
+              <div className="card p-6">
+                <div className="flex items-start gap-3">
+                  <IconKey size={18} className="text-brand-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h2 className="font-semibold text-gray-900 mb-1">API Keys</h2>
+                    <p className="text-sm text-gray-500">
+                      Use API keys to authenticate requests to the{" "}
+                      <a href="/api/docs" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline font-medium">
+                        Tether v1 API
+                      </a>
+                      . Keys are shown once — copy them immediately.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* New key after creation */}
+              {newRawKey && (
+                <div className="card p-5 border-green-200 bg-green-50">
+                  <p className="text-sm font-semibold text-green-800 mb-2">API key created — copy it now</p>
+                  <p className="text-xs text-green-700 mb-3">This is the only time you&apos;ll see this key. Store it somewhere safe.</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-white border border-green-200 rounded-lg px-3 py-2 text-xs font-mono text-green-900 overflow-x-auto select-all">
+                      {newRawKey}
+                    </code>
+                    <button
+                      onClick={() => copyKey(newRawKey)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-all shrink-0"
+                    >
+                      {copiedKey ? <IconCheck size={13} /> : <IconCopy size={13} />}
+                      {copiedKey ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <button onClick={() => setNewRawKey(null)} className="mt-3 text-xs text-green-700 hover:underline">
+                    I&apos;ve saved it — dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Create key form */}
+              <div className="card p-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Create a new key</h3>
+                <form onSubmit={handleCreateKey} className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    value={newKeyName}
+                    onChange={e => setNewKeyName(e.target.value)}
+                    placeholder="Key name (e.g. My Dashboard)"
+                    maxLength={100}
+                    required
+                    className="input py-2 text-sm flex-1"
+                  />
+                  <input
+                    type="date"
+                    value={newKeyExpiry}
+                    onChange={e => setNewKeyExpiry(e.target.value)}
+                    className="input py-2 text-sm w-40"
+                    title="Expiry date (optional)"
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                  <button
+                    type="submit"
+                    disabled={creatingKey || !newKeyName.trim()}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-all shrink-0"
+                  >
+                    {creatingKey ? "Creating…" : "Create key"}
+                  </button>
+                </form>
+                <p className="text-xs text-gray-400 mt-2">Leave expiry blank for a non-expiring key. Max 10 active keys.</p>
+              </div>
+
+              {/* Existing keys */}
+              <div className="card overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <h3 className="text-sm font-semibold text-gray-900">Your keys</h3>
+                </div>
+                {apiKeysLoading ? (
+                  <div className="p-6 space-y-3">
+                    {Array(2).fill(0).map((_, i) => (
+                      <div key={i} className="animate-pulse bg-gray-100 rounded-xl h-14" />
+                    ))}
+                  </div>
+                ) : apiKeys.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <IconKey size={28} className="text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">No API keys yet. Create one above.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {apiKeys.map(k => (
+                      <div key={k.id} className="flex items-center gap-4 px-6 py-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">{k.name}</p>
+                            {!k.is_active && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-semibold">Revoked</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <code className="text-xs font-mono text-gray-400">{k.key_prefix}…</code>
+                            <span className="text-xs text-gray-400">
+                              Created {new Date(k.created_at).toLocaleDateString()}
+                            </span>
+                            {k.last_used_at && (
+                              <span className="text-xs text-gray-400">
+                                Last used {new Date(k.last_used_at).toLocaleDateString()}
+                              </span>
+                            )}
+                            {k.expires_at && (
+                              <span className={`text-xs ${new Date(k.expires_at) < new Date() ? "text-red-500" : "text-gray-400"}`}>
+                                Expires {new Date(k.expires_at).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {k.is_active && (
+                          <button
+                            disabled={revokingId === k.id}
+                            onClick={() => handleRevokeKey(k.id)}
+                            className="text-xs font-medium px-2.5 py-1.5 rounded-lg text-red-600 border border-red-200 hover:bg-red-50 transition-all disabled:opacity-40 shrink-0"
+                          >
+                            {revokingId === k.id ? "Revoking…" : "Revoke"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Usage example */}
+              <div className="card p-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Usage example</h3>
+                <pre className="bg-gray-950 text-gray-100 rounded-xl p-4 text-xs overflow-x-auto leading-relaxed">
+{`# Search creators
+curl https://tether-backend-peach.vercel.app/api/v1/creators?q=tech \\
+  -H "Authorization: Bearer tth_your_key_here"
+
+# Get your own profile & metrics
+curl https://tether-backend-peach.vercel.app/api/v1/me \\
+  -H "Authorization: Bearer tth_your_key_here"`}
+                </pre>
               </div>
             </div>
           )}

@@ -150,6 +150,25 @@ Requires `INSTAGRAM_CLIENT_ID` + `INSTAGRAM_CLIENT_SECRET`. Returns `503` if not
 
 **Admin guard:** `tether-backend/lib/adminGuard.ts` → `requireAdmin()` verifies JWT then checks `profiles.is_admin = true`.
 
+### Developer API keys (session-authenticated)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/developer/keys` | List own API keys (prefix + metadata; never raw key) |
+| POST | `/api/developer/keys` | Create key `{ name, expires_at? }` → returns raw key **once** |
+| DELETE | `/api/developer/keys/:id` | Revoke key (sets `is_active = false`) |
+
+Max 10 active keys per user.
+
+### v1 Public API (API-key authenticated via `Authorization: Bearer tth_<key>`)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/creators` | Search creators with metrics (same filters as discover) |
+| GET | `/api/v1/me` | Own profile + platforms + snapshots for the key's owner |
+
+**API key guard:** `tether-backend/lib/apiKeyGuard.ts` → `requireApiKey()` hashes the bearer token (SHA-256), looks up `api_keys` table, updates `last_used_at`.
+
+Key format: `tth_` + 32 random bytes as hex (68 chars total). Only SHA-256 hash stored in DB.
+
 ---
 
 ## Database schema
@@ -166,6 +185,7 @@ Requires `INSTAGRAM_CLIENT_ID` + `INSTAGRAM_CLIENT_SECRET`. Returns `503` if not
 | `messages` | Messages per conversation (body 1–2000 chars) |
 | `profile_views` | Legacy view tracking; used by dashboard view-count widgets |
 | `page_views` | Rich page-view analytics for `/c/:username` |
+| `api_keys` | Developer API keys (hashed, prefix for display, per-user max 10) |
 
 ### `profiles` key columns
 
@@ -214,6 +234,7 @@ Instagram `metadata`: `{ username, followers_count, media_count, profile_picture
 | `20260507000001_last_active_at.sql` | `last_active_at` on profiles |
 | `20260507000002_page_views.sql` | `page_views` table, composite indexes, RLS |
 | `20260507000003_admin.sql` | `is_admin` + `is_suspended` on profiles |
+| `20260507000004_api_keys.sql` | `api_keys` table (hash, prefix, active, expiry), RLS |
 
 ---
 
