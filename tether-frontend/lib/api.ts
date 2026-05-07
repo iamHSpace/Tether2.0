@@ -359,4 +359,110 @@ export const api = {
   auth: {
     me: () => get<{ user: { id: string; email: string } | null }>("/api/me"),
   },
+
+  /** Admin — all endpoints require is_admin = true */
+  admin: {
+    stats: () =>
+      get<AdminStats>("/api/admin/stats"),
+
+    users: (params: { q?: string; user_type?: string; suspended?: string; page?: number; limit?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q)         qs.set("q",         params.q);
+      if (params.user_type) qs.set("user_type",  params.user_type);
+      if (params.suspended) qs.set("suspended",  params.suspended);
+      if (params.page)      qs.set("page",       String(params.page));
+      if (params.limit)     qs.set("limit",      String(params.limit));
+      return get<AdminUsersResponse>(`/api/admin/users?${qs}`);
+    },
+
+    updateUser: (id: string, patch: { user_type?: string; is_suspended?: boolean; is_admin?: boolean }) =>
+      put<{ user: AdminUser }>(`/api/admin/users/${id}`, patch),
+
+    deleteUser: (id: string) =>
+      del<{ ok: boolean }>(`/api/admin/users/${id}`),
+
+    platformHealth: () =>
+      get<AdminHealthResponse>("/api/admin/platform-health"),
+
+    triggerSnapshot: () =>
+      post<{ succeeded: number; failed: number; total: number }>("/api/admin/snapshot/trigger"),
+
+    analytics: (days?: number) =>
+      get<AdminAnalytics>(`/api/admin/analytics${days ? `?days=${days}` : ""}`),
+
+    conversations: (params: { page?: number; limit?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.page)  qs.set("page",  String(params.page));
+      if (params.limit) qs.set("limit", String(params.limit));
+      return get<AdminConversationsResponse>(`/api/admin/conversations?${qs}`);
+    },
+
+    conversation: (id: string) =>
+      get<AdminConversationDetail>(`/api/admin/conversations/${id}`),
+
+    flagProfile: (id: string, suspended: boolean) =>
+      put<{ profile: { id: string; username: string; is_suspended: boolean } }>(
+        `/api/admin/profiles/${id}/flag`,
+        { suspended }
+      ),
+  },
 };
+
+// ── Admin types ───────────────────────────────────────────────────────────────
+
+export interface AdminStats {
+  users:     { total: number; creators: number; businesses: number; activeCreators: number };
+  pageViews: { today: number; week: number; month: number };
+  messaging: { conversations: number; messages: number };
+}
+
+export interface AdminUser {
+  id: string; username: string | null; full_name: string | null; company_name: string | null;
+  user_type: string; is_admin: boolean; is_suspended: boolean;
+  last_active_at: string | null; created_at: string; updated_at: string | null;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[]; total: number; page: number; limit: number;
+}
+
+export interface AdminHealthCreator {
+  id: string; username: string | null; full_name: string | null; last_active_at: string | null;
+  connected: boolean; channel_name: string | null;
+  token_expiry: string | null; days_until_expiry: number | null;
+  last_snapshot: string | null; snapshot_age_days: number | null;
+  status: "healthy" | "stale" | "expiring_soon" | "disconnected";
+}
+
+export interface AdminHealthResponse {
+  creators: AdminHealthCreator[]; total: number;
+}
+
+export interface AdminAnalytics {
+  total: number; days: number;
+  viewerType:   Record<string, number>;
+  topCountries: { country: string; count: number }[];
+  deviceType:   Record<string, number>;
+  referrerType: Record<string, number>;
+  dailyViews:   { date: string; count: number }[];
+}
+
+export interface AdminConversationSummary {
+  id: string; last_message_at: string; created_at: string;
+  creator:  { id: string; username: string | null; name: string };
+  business: { id: string; username: string | null; name: string };
+  last_message: { body: string; created_at: string } | null;
+}
+
+export interface AdminConversationsResponse {
+  conversations: AdminConversationSummary[]; total: number; page: number; limit: number;
+}
+
+export interface AdminConversationDetail {
+  conversation: {
+    id: string; last_message_at: string; created_at: string;
+    creator:  { id: string; name: string; username: string | null };
+    business: { id: string; name: string; username: string | null };
+  };
+  messages: { id: string; sender_id: string; body: string; read_at: string | null; created_at: string }[];
+}
