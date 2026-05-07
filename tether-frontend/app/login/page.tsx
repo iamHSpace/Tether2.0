@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
+
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
     <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
@@ -15,42 +17,60 @@ const GOOGLE_SVG = (
 type UserType = "creator" | "business";
 
 export default function LoginPage() {
-  const [userType, setUserType] = useState<UserType>("creator");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [userType, setUserType]     = useState<UserType>("creator");
+  const [identifier, setIdentifier] = useState("");   // email or username
+  const [password, setPassword]     = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
 
   const urlError =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("error")
       : null;
 
-  async function handleEmail(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) { setError(error.message); setLoading(false); return; }
+
+    const raw = identifier.trim().toLowerCase();
+
+    // Resolve username → email if needed
+    let email = raw;
+    if (!raw.includes("@")) {
+      try {
+        const res = await fetch(`${BACKEND}/api/auth/resolve-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: raw }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error ?? "Username not found"); setLoading(false); return; }
+        email = data.email;
+      } catch {
+        setError("Could not connect to server"); setLoading(false); return;
+      }
+    }
+
+    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (authErr) { setError(authErr.message); setLoading(false); return; }
+
     // Middleware routes to the correct home based on user_type in JWT
     window.location.href = userType === "business" ? "/discover" : "/dashboard";
   }
 
   async function handleGoogleLogin() {
     setLoading(true); setError(null);
-    // Store intended role for Google OAuth — needed when the account is new
     localStorage.setItem("tether_intended_user_type", userType);
-    const redirectTo = `${window.location.origin}/api/auth/callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
     });
     if (error) { setError(error.message); setLoading(false); }
   }
 
   const isCreator = userType === "creator";
+  // Detect whether the user is typing an email or username for the placeholder
+  const looksLikeEmail = identifier.includes("@");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
@@ -72,13 +92,10 @@ export default function LoginPage() {
         <div className="card p-8">
           {/* Role toggle */}
           <div className="flex gap-2 p-1 bg-gray-100 rounded-xl mb-6">
-            <button
-              type="button"
-              onClick={() => setUserType("creator")}
+            <button type="button" onClick={() => setUserType("creator")}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 isCreator ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
+              }`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke={isCreator ? "#7c3aed" : "currentColor"}
                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,13 +103,10 @@ export default function LoginPage() {
               </svg>
               Creator
             </button>
-            <button
-              type="button"
-              onClick={() => setUserType("business")}
+            <button type="button" onClick={() => setUserType("business")}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 !isCreator ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
+              }`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke={!isCreator ? "#2563eb" : "currentColor"}
                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -108,30 +122,36 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5 disabled:opacity-50"
-          >
+          <button onClick={handleGoogleLogin} disabled={loading}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5 disabled:opacity-50">
             {GOOGLE_SVG}
-            {loading ? "Redirecting…" : `Continue with Google`}
+            {loading ? "Redirecting…" : "Continue with Google"}
           </button>
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400 font-medium">or sign in with email</span>
+            <span className="text-xs text-gray-400 font-medium">or sign in with email / username</span>
             <div className="flex-1 h-px bg-gray-100" />
           </div>
 
-          <form onSubmit={handleEmail} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Email or username
+              </label>
               <input
-                type="email" required autoComplete="email"
-                value={email} onChange={e => setEmail(e.target.value)}
-                disabled={loading} placeholder="you@example.com"
+                type="text"
+                required
+                autoComplete="username"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                disabled={loading}
+                placeholder="you@example.com or yourhandle"
                 className="input"
               />
+              {identifier && !looksLikeEmail && (
+                <p className="mt-1 text-xs text-gray-400">Signing in with username</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">Password</label>
