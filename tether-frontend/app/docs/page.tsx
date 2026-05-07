@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+const SPEC_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://tether-backend-peach.vercel.app"}/api/docs`;
+
 export default function DocsPage() {
   useEffect(() => {
     const link = document.createElement("link");
@@ -20,7 +22,7 @@ export default function DocsPage() {
     script.onload = () => {
       // @ts-expect-error — SwaggerUIBundle loaded from CDN
       const ui = window.SwaggerUIBundle({
-        url: "/api/docs",
+        url: SPEC_URL,
         dom_id: "#swagger-ui",
         presets: [
           // @ts-expect-error — CDN global
