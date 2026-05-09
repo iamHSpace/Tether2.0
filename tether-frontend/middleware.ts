@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // /@username and /b/@username are public creator/business profile pages.
 // /c/ is kept for the legacy redirect route.
-const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/auth", "/@", "/b/@", "/c/", "/suspended", "/pricing", "/docs"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/auth", "/@", "/b/@", "/c/", "/suspended", "/pricing", "/docs", "/robots.txt", "/sitemap.xml", "/favicon"];
 const AUTH_REDIRECT_PATHS = ["/login", "/signup", "/auth"];
 
 export async function middleware(request: NextRequest) {
