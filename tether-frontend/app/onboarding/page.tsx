@@ -136,7 +136,7 @@ export default function OnboardingPage() {
               <span className="text-gray-400 font-normal ml-1">(optional)</span>
             </label>
             <div className="flex items-center">
-              <span className="text-gray-400 text-sm mr-1">statvora.io/c/</span>
+              <span className="text-gray-400 text-sm mr-1">statvora.in/@</span>
               <input
                 type="text"
                 value={username}

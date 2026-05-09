@@ -183,7 +183,7 @@ function CreatorCard({ creator: c, isSaved, onSave, onUnsave, onMessage }: Creat
           className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50">
           <IconMessage size={11} /> {messaging ? "…" : "Message"}
         </button>
-        <a href={`/c/${c.username}`} target="_blank" rel="noopener noreferrer"
+        <a href={`/@${c.username}`} target="_blank" rel="noopener noreferrer"
           className="w-8 h-8 flex items-center justify-center rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-400">
           <IconExternal size={11} />
         </a>

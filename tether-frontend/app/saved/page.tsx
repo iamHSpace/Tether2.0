@@ -220,7 +220,7 @@ function CreatorCard({ creator: c, onUnsave, onMessage }: { creator: EnrichedCre
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-40">
             <IconMessage size={11} /> Message
           </button>
-          <a href={`/c/${c.creator_username}`} target="_blank" rel="noopener noreferrer"
+          <a href={`/@${c.creator_username}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">
             <IconExternal size={11} /> View
           </a>

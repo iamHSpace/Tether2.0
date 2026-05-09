@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const { usernames } = await res.json() as { usernames: string[] };
       for (const username of usernames) {
         entries.push({
-          url: `${BASE_URL}/c/${encodeURIComponent(username)}`,
+          url: `${BASE_URL}/@${encodeURIComponent(username)}`,
           lastModified: new Date(),
           changeFrequency: "weekly",
           priority: 0.8,

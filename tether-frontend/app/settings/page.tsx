@@ -340,7 +340,7 @@ export default function SettingsPage() {
                     <p className="text-xs text-red-500 mt-1">{usernameHint}</p>
                   ) : profile.username && usernameStatus === "available" ? (
                     <p className="text-xs text-green-600 mt-1">
-                      statvora.io/c/<strong>{profile.username}</strong>
+                      statvora.in/@<strong>{profile.username}</strong>
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400 mt-1">

@@ -304,7 +304,7 @@ export default function DashboardPage() {
   useEffect(() => { load(); }, [load]);
 
   function copyLink() {
-    navigator.clipboard.writeText(`${window.location.origin}/c/${profile?.username ?? "me"}`);
+    navigator.clipboard.writeText(`${window.location.origin}/@${profile?.username ?? "me"}`);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
@@ -458,7 +458,7 @@ export default function DashboardPage() {
             )}
             {profile?.username && (
               <>
-                <a href={`/c/${profile.username}`} target="_blank" rel="noopener noreferrer"
+                <a href={`/@${profile.username}`} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 shadow-sm">
                   <IconExternal size={12} /> View profile
                 </a>
@@ -781,7 +781,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       Control what appears on{" "}
                       {profile?.username
-                        ? <a href={`/c/${profile.username}`} target="_blank" className="text-brand-600 hover:underline">statvora.io/c/{profile.username}</a>
+                        ? <a href={`/@${profile.username}`} target="_blank" className="text-brand-600 hover:underline">statvora.in/@{profile.username}</a>
                         : "your public profile"}.
                     </p>
                   </div>

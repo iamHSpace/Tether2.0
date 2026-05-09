@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/auth", "/c/", "/suspended", "/pricing", "/docs"];
+// /@username and /b/@username are public creator/business profile pages.
+// /c/ is kept for the legacy redirect route.
+const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/api/auth", "/@", "/b/@", "/c/", "/suspended", "/pricing", "/docs"];
 const AUTH_REDIRECT_PATHS = ["/login", "/signup", "/auth"];
 
 export async function middleware(request: NextRequest) {
