@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
-const BASE_URL = "https://statvora.vercel.app";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://statvora.in";
 
 export const revalidate = 3600;
 

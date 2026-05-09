@@ -57,7 +57,7 @@ type ReferrerType = "direct" | "search" | "social" | "internal" | "other";
 
 const SEARCH_HOSTS  = ["google.com", "bing.com", "yahoo.com", "duckduckgo.com", "baidu.com", "yandex.com", "ecosia.org"];
 const SOCIAL_HOSTS  = ["instagram.com", "twitter.com", "x.com", "linkedin.com", "facebook.com", "tiktok.com", "youtube.com", "threads.net", "reddit.com", "pinterest.com", "snapchat.com", "whatsapp.com"];
-const STATVORA_HOSTS = ["statvora.vercel.app", "statvora.io", "localhost"];
+const STATVORA_HOSTS = ["statvora.in", "statvora.vercel.app", "localhost"];
 
 function classifyReferrer(referrer: string | null): ReferrerType {
   if (!referrer) return "direct";

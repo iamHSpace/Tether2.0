@@ -22,7 +22,7 @@ CREATE TABLE public.profiles (
   -- Onboarding answers (stored for personalisation / analytics)
   creator_stage   TEXT,    -- e.g. "just_starting" | "growing" | "established"
   aspiration      TEXT,    -- creator's stated goal
-  platform_reason TEXT,    -- why they joined Tether
+  platform_reason TEXT,    -- why they joined Statvora
 
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

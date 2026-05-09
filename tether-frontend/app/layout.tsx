@@ -13,7 +13,7 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://statvora.vercel.app";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://statvora.in";
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),

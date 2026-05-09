@@ -29,7 +29,7 @@ All v1 endpoints require an API key in the \`Authorization\` header:
 Authorization: Bearer stv_your_key_here
 \`\`\`
 
-Generate a key in the **Developer** tab of your [Settings](https://statvora.vercel.app/settings) page.
+Generate a key in the **Developer** tab of your [Settings](https://statvora.in/settings) page.
 
 ## Base URL
 

@@ -43,7 +43,7 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [plans, setPlans] = useState<PlanWithFeatures[]>([]);
   const [featureDefs, setFeatureDefs] = useState<FeatureDefinition[]>([]);
-  const [salesEmail, setSalesEmail] = useState("sales@statvora.io");
+  const [salesEmail, setSalesEmail] = useState("sales@statvora.in");
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

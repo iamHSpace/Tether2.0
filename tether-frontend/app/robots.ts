@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/dashboard", "/settings", "/onboarding", "/api/"],
       },
     ],
-    sitemap: "https://statvora.vercel.app/sitemap.xml",
+    sitemap: "https://statvora.in/sitemap.xml",
   };
 }

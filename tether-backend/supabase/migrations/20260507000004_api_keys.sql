@@ -1,5 +1,5 @@
--- API keys for external developer access to the Tether v1 API.
--- Raw key is shown once on creation (tth_ prefix + 32 random bytes as hex).
+-- API keys for external developer access to the Statvora v1 API.
+-- Raw key is shown once on creation (stv_ prefix + 32 random bytes as hex).
 -- Only the SHA-256 hash is stored here; the raw key cannot be recovered.
 
 CREATE TABLE api_keys (
