@@ -30,7 +30,7 @@ const REASONS = [
 const STEPS = [
   { title: "Where are you in your creator journey?", subtitle: "Help us personalise your experience", options: JOURNEY_STEPS },
   { title: "What do you aspire to be?",              subtitle: "We'll tailor insights to your goals",  options: ASPIRATIONS  },
-  { title: "Why are you on Tether?",                 subtitle: "So we know what to show you first",   options: REASONS      },
+  { title: "Why are you on Statvora?",                subtitle: "So we know what to show you first",   options: REASONS      },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ export default function OnboardingPage() {
               <span className="text-gray-400 font-normal ml-1">(optional)</span>
             </label>
             <div className="flex items-center">
-              <span className="text-gray-400 text-sm mr-1">tether.app/</span>
+              <span className="text-gray-400 text-sm mr-1">statvora.io/c/</span>
               <input
                 type="text"
                 value={username}

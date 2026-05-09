@@ -239,10 +239,10 @@ export default function DiscoverPage() {
     if (!user) { window.location.href = "/login"; return; }
 
     // Handle Google OAuth role assignment — if role was stored before OAuth
-    const intendedType = localStorage.getItem("tether_intended_user_type");
+    const intendedType = localStorage.getItem("statvora_intended_user_type");
     if (intendedType && !user.user_metadata?.user_type) {
       await supabase.auth.updateUser({ data: { user_type: intendedType } });
-      localStorage.removeItem("tether_intended_user_type");
+      localStorage.removeItem("statvora_intended_user_type");
     }
 
     try {

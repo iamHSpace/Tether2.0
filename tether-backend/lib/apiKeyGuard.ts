@@ -8,15 +8,15 @@ export class ApiKeyError extends Error {
 }
 
 /**
- * Validates a Tether API key from the Authorization header.
+ * Validates a Statvora API key from the Authorization header.
  *
- * Expects: Authorization: Bearer tth_<hex>
+ * Expects: Authorization: Bearer stv_<hex>
  * Returns the user_id on success; throws ApiKeyError on failure.
  */
 export async function requireApiKey(authHeader: string | null): Promise<string> {
   const raw = extractBearer(authHeader);
-  if (!raw || !raw.startsWith("tth_")) {
-    throw new ApiKeyError(401, "Missing or invalid API key. Expected Authorization: Bearer tth_<key>");
+  if (!raw || !raw.startsWith("stv_")) {
+    throw new ApiKeyError(401, "Missing or invalid API key. Expected Authorization: Bearer stv_<key>");
   }
 
   const hash = hashKey(raw);
@@ -51,7 +51,7 @@ export function hashKey(raw: string): string {
 
 export function generateKey(): { raw: string; hash: string; prefix: string } {
   const bytes = crypto.randomBytes(32).toString("hex"); // 64 hex chars
-  const raw = `tth_${bytes}`;
+  const raw = `stv_${bytes}`;
   return { raw, hash: hashKey(raw), prefix: raw.slice(0, 12) };
 }
 

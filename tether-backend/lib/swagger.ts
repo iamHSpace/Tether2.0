@@ -7,29 +7,29 @@
  * Served by GET /api/docs  →  rendered at /docs (Swagger UI)
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://tether-backend-peach.vercel.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://statvora-backend.vercel.app";
 
 export function getSwaggerSpec() {
   return {
     openapi: "3.0.3",
 
     info: {
-      title: "Tether API",
+      title: "Statvora API",
       version: "1.0.0",
       description: `
 ## Overview
 
-The Tether v1 API lets business accounts query creator profiles and their own saved-creator data programmatically.
+The Statvora v1 API lets business accounts query creator profiles and their own saved-creator data programmatically.
 
 ## Authentication
 
 All v1 endpoints require an API key in the \`Authorization\` header:
 
 \`\`\`
-Authorization: Bearer tth_your_key_here
+Authorization: Bearer stv_your_key_here
 \`\`\`
 
-Generate a key in the **Developer** tab of your [Settings](https://tether-frontend.vercel.app/settings) page.
+Generate a key in the **Developer** tab of your [Settings](https://statvora.vercel.app/settings) page.
 
 ## Base URL
 
@@ -167,15 +167,15 @@ All errors follow the shape:
         apiKey: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "tth_<key>",
-          description: "API key generated from the Developer tab in Settings. Format: `tth_<64-hex-chars>`.",
+          bearerFormat: "stv_<key>",
+          description: "API key generated from the Developer tab in Settings. Format: `stv_<64-hex-chars>`.",
         },
       },
 
       responses: {
         Unauthorized: {
           description: "Missing or invalid API key",
-          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" }, example: { error: "Missing or invalid API key. Expected Authorization: Bearer tth_<key>" } } },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" }, example: { error: "Missing or invalid API key. Expected Authorization: Bearer stv_<key>" } } },
         },
         Forbidden: {
           description: "API key revoked or expired",

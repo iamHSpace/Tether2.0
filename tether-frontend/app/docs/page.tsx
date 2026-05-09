@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const SPEC_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://tether-backend-peach.vercel.app"}/api/docs`;
+const SPEC_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://statvora-backend.vercel.app"}/api/docs`;
 
 export default function DocsPage() {
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function DocsPage() {
     <>
       <div style={{ background: "#1a1a2e", borderBottom: "1px solid #16213e", padding: "0.85rem 2rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <span style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "1.1rem", color: "#e2e8f0", letterSpacing: "-0.01em" }}>Tether 2.0</span>
+          <span style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "1.1rem", color: "#e2e8f0", letterSpacing: "-0.01em" }}>Statvora</span>
           <span style={{ fontFamily: "sans-serif", fontSize: "0.8rem", color: "#718096", borderLeft: "1px solid #2d3748", paddingLeft: "1rem" }}>API Documentation</span>
         </div>
         <a href="/" style={{ fontFamily: "sans-serif", fontSize: "0.85rem", color: "#90cdf4", textDecoration: "none" }}>← Back</a>

@@ -77,11 +77,9 @@ export default function AdminSidebar({ email, displayName }: Props) {
       <div className="px-5 py-5 border-b border-gray-800">
         <a href="/admin/users" className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <img src="/brand/logo-icon.svg" width={16} height={16} alt="Statvora" />
           </div>
-          <span className="font-bold text-white tracking-tight">Tether</span>
+          <span className="font-bold text-white tracking-tight">Statvora</span>
           <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-900 text-red-300 border border-red-800 uppercase tracking-wide">Admin</span>
         </a>
       </div>

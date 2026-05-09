@@ -12,7 +12,7 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh when < 5 min remaining
  *
  * Returns the authenticated user's YouTube channel stats + recent videos.
  *
- * 1. Verify Tether session
+ * 1. Verify Statvora session
  * 2. Load encrypted tokens from platform_tokens
  * 3. Auto-refresh the access token if it expires within TOKEN_REFRESH_BUFFER_MS
  * 4. Fetch channel stats + recent videos from YouTube Data API v3

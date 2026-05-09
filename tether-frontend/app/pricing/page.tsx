@@ -43,7 +43,7 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const [plans, setPlans] = useState<PlanWithFeatures[]>([]);
   const [featureDefs, setFeatureDefs] = useState<FeatureDefinition[]>([]);
-  const [salesEmail, setSalesEmail] = useState("sales@tether.so");
+  const [salesEmail, setSalesEmail] = useState("sales@statvora.io");
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export default function PricingPage() {
 
   const handleSelect = useCallback(async (plan: PlanWithFeatures) => {
     if (plan.is_enterprise) {
-      window.location.href = `mailto:${salesEmail}?subject=Tether Enterprise Enquiry&body=Hi, I'm interested in Tether's Enterprise plan for ${plan.user_type}s.`;
+      window.location.href = `mailto:${salesEmail}?subject=Statvora Enterprise Enquiry&body=Hi, I'm interested in Statvora's Enterprise plan for ${plan.user_type}s.`;
       return;
     }
     if (plan.is_free) {
@@ -117,7 +117,7 @@ export default function PricingPage() {
       {/* Header */}
       <div style={{ borderBottom: "1px solid #1e293b", padding: "1rem 2rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.9rem" }}>← Back</button>
-        <span style={{ fontWeight: 700, fontSize: "1.1rem", color: "#e2e8f0" }}>Tether Pricing</span>
+        <span style={{ fontWeight: 700, fontSize: "1.1rem", color: "#e2e8f0" }}>Statvora Pricing</span>
         <div />
       </div>
 
@@ -267,7 +267,7 @@ export default function PricingPage() {
             Enterprise plans include unlimited usage, priority support, custom integrations, and a dedicated account manager.
           </p>
           <a
-            href={`mailto:${salesEmail}?subject=Tether Enterprise Enquiry`}
+            href={`mailto:${salesEmail}?subject=Statvora Enterprise Enquiry`}
             style={{
               display: "inline-block", padding: "0.75rem 2rem", borderRadius: 8,
               background: "#6d28d9", color: "#fff", fontWeight: 700,

@@ -47,7 +47,7 @@ export async function generateMetadata(
   const category = profile.category ? `${profile.category} creator` : "creator";
 
   // Title: aim for 50-60 chars — include category and platform context
-  const ogTitle = `${name} — Verified ${category} profile on Tether`;
+  const ogTitle = `${name} — Verified ${category} profile on Statvora`;
 
   // Description: aim for 110-160 chars — include metrics and CTA
   const descParts: string[] = [];
@@ -56,7 +56,7 @@ export async function generateMetadata(
   descParts.push("All metrics verified directly from YouTube's API — no self-reported numbers.");
   const richDescription = descParts.join(". ").slice(0, 160);
 
-  const pageUrl = `https://tether-frontend.vercel.app/c/${username}`;
+  const pageUrl = `https://statvora.vercel.app/c/${username}`;
 
   return {
     title: ogTitle,
@@ -64,7 +64,7 @@ export async function generateMetadata(
     alternates: { canonical: pageUrl },
     openGraph: {
       type: "profile",
-      siteName: "Tether",
+      siteName: "Statvora",
       title: ogTitle,
       description: richDescription,
       url: pageUrl,
@@ -254,9 +254,9 @@ export default async function CreatorPublicProfile(
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <img src="/brand/logo-icon.svg" width={12} height={12} alt="Statvora" />
             </div>
-            <span className="text-sm font-bold text-gray-800">Tether</span>
+            <span className="text-sm font-bold text-gray-800">Statvora</span>
           </a>
           <ShareButton />
         </div>
@@ -299,7 +299,7 @@ export default async function CreatorPublicProfile(
               </div>
             </div>
             <a href="/login" className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors">
-              Join Tether
+              Join Statvora
             </a>
           </div>
         </div>
@@ -497,7 +497,7 @@ export default async function CreatorPublicProfile(
 
         {/* Footer */}
         <div className="text-center pb-4">
-          <p className="text-xs text-gray-400 mb-3">Powered by <a href="/" className="text-brand-600 font-medium hover:underline">Tether</a> — verified creator metrics</p>
+          <p className="text-xs text-gray-400 mb-3">Powered by <a href="/" className="text-brand-600 font-medium hover:underline">Statvora</a> — verified creator metrics</p>
           <a href="/signup" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700">
             Create your verified profile →
           </a>

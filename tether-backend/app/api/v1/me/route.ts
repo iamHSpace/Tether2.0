@@ -19,10 +19,10 @@ async function resolveUser(req: NextRequest): Promise<{ userId: string } | NextR
  * summary: Get authenticated creator's own profile
  * description: |
  *   Returns the full profile and latest metrics for the creator whose API key
- *   is used to authenticate. Useful for embedding your Tether stats in external
+ *   is used to authenticate. Useful for embedding your Statvora stats in external
  *   dashboards or automations.
  *
- * Authentication: Bearer tth_<key>
+ * Authentication: Bearer stv_<key>
  */
 export async function GET(req: NextRequest) {
   const result = await resolveUser(req);

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import AdminSidebar from "@/components/layout/AdminSidebar";
 
-export const metadata = { title: "Admin — Tether" };
+export const metadata = { title: "Admin — Statvora" };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();

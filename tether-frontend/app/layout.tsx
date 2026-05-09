@@ -13,31 +13,31 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const BASE_URL = "https://tether-frontend.vercel.app";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://statvora.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: "Tether — Creator Intelligence Platform",
-    template: "%s — Tether",
+    default: "Statvora — Creator Intelligence Platform",
+    template: "%s — Statvora",
   },
-  description: "Connect your social accounts and share verified metrics with brands and agencies. Get discovered by top companies.",
+  description: "Connect your social accounts and share verified metrics with brands and agencies. Get discovered by top companies on Statvora.",
+  keywords: ["Statvora", "creator analytics", "influencer metrics", "YouTube stats", "creator intelligence", "brand discovery"],
   openGraph: {
     type: "website",
-    siteName: "Tether",
-    title: "Tether — Creator Intelligence Platform",
+    siteName: "Statvora",
+    title: "Statvora — Creator Intelligence Platform",
     description: "Connect your social accounts and share verified metrics with brands and agencies.",
     url: BASE_URL,
   },
   twitter: {
-    card: "summary",
-    title: "Tether — Creator Intelligence Platform",
+    card: "summary_large_image",
+    title: "Statvora — Creator Intelligence Platform",
     description: "Connect your social accounts and share verified metrics with brands and agencies.",
   },
   icons: {
-    icon: "/favicon.svg",
+    icon: "/brand/logo-icon.svg",
   },
-  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

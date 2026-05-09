@@ -32,7 +32,7 @@ export default function SignupPage() {
 
   function handleGoogleClick() {
     // Store intended role so the dashboard can set it in user_metadata after OAuth
-    localStorage.setItem("tether_intended_user_type", userType);
+    localStorage.setItem("statvora_intended_user_type", userType);
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -71,11 +71,9 @@ export default function SignupPage() {
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <img src="/brand/logo-icon.svg" width={24} height={24} alt="Statvora" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Join Tether</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Join Statvora</h1>
             <p className="text-gray-500 text-sm mt-1">Who are you signing up as?</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -141,7 +139,7 @@ export default function SignupPage() {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Join Tether</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Join Statvora</h1>
           <p className="text-gray-500 text-sm mt-1">
             {isCreator ? "Your verified creator profile starts here" : "Find and connect with verified creators"}
           </p>

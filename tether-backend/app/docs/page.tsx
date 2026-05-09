@@ -89,7 +89,7 @@ export default function DocsPage() {
               letterSpacing: "-0.01em",
             }}
           >
-            Tether 2.0
+            Statvora
           </span>
           <span
             style={{

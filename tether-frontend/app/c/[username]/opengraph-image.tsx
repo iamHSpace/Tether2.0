@@ -57,7 +57,7 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
           position: "relative",
         }}
       >
-        {/* Top bar: Tether brand */}
+        {/* Top bar: Statvora brand */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
           <div
             style={{
@@ -76,7 +76,7 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
               <path d="M2 12l10 5 10-5" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#1f1f2e", letterSpacing: "-0.3px" }}>Tether</span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: "#1f1f2e", letterSpacing: "-0.3px" }}>Statvora</span>
           <div
             style={{
               marginLeft: 12,
@@ -187,7 +187,7 @@ export default async function OgImage({ params }: { params: Promise<{ username: 
 
         {/* Bottom tagline */}
         <div style={{ marginTop: 28, fontSize: 16, color: "#9ca3af" }}>
-          tether-frontend.vercel.app/c/{username} · Metrics verified via YouTube API
+          statvora.vercel.app/c/{username} · Metrics verified via YouTube API
         </div>
       </div>
     ),

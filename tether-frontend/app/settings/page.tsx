@@ -340,7 +340,7 @@ export default function SettingsPage() {
                     <p className="text-xs text-red-500 mt-1">{usernameHint}</p>
                   ) : profile.username && usernameStatus === "available" ? (
                     <p className="text-xs text-green-600 mt-1">
-                      tether.so/c/<strong>{profile.username}</strong>
+                      statvora.io/c/<strong>{profile.username}</strong>
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400 mt-1">
@@ -407,7 +407,7 @@ export default function SettingsPage() {
           {tab === "connections" && (
             <div className="card p-6">
               <h2 className="font-semibold text-gray-900 mb-1">Connected platforms</h2>
-              <p className="text-sm text-gray-500 mb-5">Manage the social accounts linked to your Tether profile.</p>
+              <p className="text-sm text-gray-500 mb-5">Manage the social accounts linked to your Statvora profile.</p>
 
               <div className="space-y-3">
                 {/* YouTube */}
@@ -453,13 +453,13 @@ export default function SettingsPage() {
           {tab === "notifications" && (
             <div className="card p-6">
               <h2 className="font-semibold text-gray-900 mb-1">Notifications</h2>
-              <p className="text-sm text-gray-500 mb-5">Choose when and how you hear from Tether.</p>
+              <p className="text-sm text-gray-500 mb-5">Choose when and how you hear from Statvora.</p>
               <div className="space-y-4">
                 {[
                   { label: "Brand enquiries", desc: "When a brand views your profile", default: true },
                   { label: "Metric milestones", desc: "When you hit a subscriber milestone", default: true },
                   { label: "Weekly digest", desc: "A weekly summary of your stats", default: false },
-                  { label: "Product updates", desc: "New Tether features and announcements", default: false },
+                  { label: "Product updates", desc: "New Statvora features and announcements", default: false },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                     <div>
@@ -609,7 +609,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-gray-500">
                       Use API keys to authenticate requests to the{" "}
                       <a href="/api/docs" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline font-medium">
-                        Tether v1 API
+                        Statvora v1 API
                       </a>
                       . Keys are shown once — copy them immediately.
                     </p>
@@ -735,12 +735,12 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Usage example</h3>
                 <pre className="bg-gray-950 text-gray-100 rounded-xl p-4 text-xs overflow-x-auto leading-relaxed">
 {`# Search creators
-curl https://tether-backend-peach.vercel.app/api/v1/creators?q=tech \\
-  -H "Authorization: Bearer tth_your_key_here"
+curl https://statvora-backend.vercel.app/api/v1/creators?q=tech \\
+  -H "Authorization: Bearer stv_your_key_here"
 
 # Get your own profile & metrics
-curl https://tether-backend-peach.vercel.app/api/v1/me \\
-  -H "Authorization: Bearer tth_your_key_here"`}
+curl https://statvora-backend.vercel.app/api/v1/me \\
+  -H "Authorization: Bearer stv_your_key_here"`}
                 </pre>
               </div>
             </div>

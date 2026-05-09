@@ -57,7 +57,7 @@ type ReferrerType = "direct" | "search" | "social" | "internal" | "other";
 
 const SEARCH_HOSTS  = ["google.com", "bing.com", "yahoo.com", "duckduckgo.com", "baidu.com", "yandex.com", "ecosia.org"];
 const SOCIAL_HOSTS  = ["instagram.com", "twitter.com", "x.com", "linkedin.com", "facebook.com", "tiktok.com", "youtube.com", "threads.net", "reddit.com", "pinterest.com", "snapchat.com", "whatsapp.com"];
-const TETHER_HOSTS  = ["tether-frontend.vercel.app", "localhost"];
+const STATVORA_HOSTS = ["statvora.vercel.app", "statvora.io", "localhost"];
 
 function classifyReferrer(referrer: string | null): ReferrerType {
   if (!referrer) return "direct";
@@ -65,7 +65,7 @@ function classifyReferrer(referrer: string | null): ReferrerType {
     const host = new URL(referrer).hostname.replace(/^www\./, "");
     if (SEARCH_HOSTS.some(d => host === d || host.endsWith(`.${d}`)))  return "search";
     if (SOCIAL_HOSTS.some(d => host === d || host.endsWith(`.${d}`)))  return "social";
-    if (TETHER_HOSTS.some(d => host === d || host.startsWith(d)))      return "internal";
+    if (STATVORA_HOSTS.some(d => host === d || host.startsWith(d)))    return "internal";
     return "other";
   } catch {
     return "other";

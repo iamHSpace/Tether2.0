@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
-const BASE_URL = "https://tether-frontend.vercel.app";
+const BASE_URL = "https://statvora.vercel.app";
 
 export const revalidate = 3600;
 

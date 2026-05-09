@@ -3,7 +3,7 @@ import { getUserFromBearer } from "@/lib/supabaseServer";
 import { supabase as adminClient } from "@/lib/supabase";
 import { requireStripe } from "@/lib/stripe";
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://tether-frontend.vercel.app";
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "https://statvora.vercel.app";
 
 /**
  * POST /api/stripe/checkout

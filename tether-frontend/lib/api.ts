@@ -1,5 +1,5 @@
 /**
- * lib/api.ts — typed client for the tether-backend API.
+ * lib/api.ts — typed client for the Statvora backend API.
  *
  * Authenticated requests use Authorization: Bearer <token>.
  * Public requests (e.g. creator profiles) send no token.

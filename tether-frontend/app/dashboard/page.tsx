@@ -244,10 +244,10 @@ export default function DashboardPage() {
     if (!user) { window.location.href = "/login"; return; }
 
     // Handle Google OAuth role assignment — if role was stored before OAuth
-    const intendedType = localStorage.getItem("tether_intended_user_type");
+    const intendedType = localStorage.getItem("statvora_intended_user_type");
     if (intendedType && !user.user_metadata?.user_type) {
       await supabase.auth.updateUser({ data: { user_type: intendedType } });
-      localStorage.removeItem("tether_intended_user_type");
+      localStorage.removeItem("statvora_intended_user_type");
       if (intendedType === "business") { window.location.href = "/discover"; return; }
     }
 
@@ -781,7 +781,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       Control what appears on{" "}
                       {profile?.username
-                        ? <a href={`/c/${profile.username}`} target="_blank" className="text-brand-600 hover:underline">tether.so/c/{profile.username}</a>
+                        ? <a href={`/c/${profile.username}`} target="_blank" className="text-brand-600 hover:underline">statvora.io/c/{profile.username}</a>
                         : "your public profile"}.
                     </p>
                   </div>
