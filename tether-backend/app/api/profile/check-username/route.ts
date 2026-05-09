@@ -14,8 +14,8 @@ import { supabase as adminClient } from "@/lib/supabase";
  *   - lowercase letters, digits, underscores, hyphens only
  */
 export async function GET(req: NextRequest) {
-  const user = await getUserFromBearer(req.headers.get("Authorization"));
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Optional auth — if a token is present we check if the username belongs to them
+  const user = await getUserFromBearer(req.headers.get("Authorization")).catch(() => null);
 
   const username = req.nextUrl.searchParams.get("username")?.toLowerCase().trim() ?? "";
 
@@ -40,8 +40,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Not taken at all, or already owned by this user
-  const available = !data || data.id === user.id;
+  // Not taken at all, or already owned by requesting user
+  const available = !data || (user ? data.id === user.id : false);
 
   return NextResponse.json({ available });
 }
