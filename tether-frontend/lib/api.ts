@@ -142,6 +142,28 @@ export interface YouTubeStatsResponse {
   connectedAt: string;
 }
 
+export interface InstagramPost {
+  id:             string;
+  media_type:     "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url:      string;
+  thumbnail_url?: string;
+  caption?:       string;
+  timestamp:      string;
+  like_count:     number;
+  comments_count: number;
+}
+
+export interface InstagramStatsResponse {
+  username:            string;
+  full_name:           string;
+  profile_picture_url: string | null;
+  followers_count:     number;
+  media_count:         number;
+  recent_posts:        InstagramPost[];
+  token_expires_at:    string | null;
+  connected_at:        string;
+}
+
 export interface MetricVisibility {
   subscribers:   boolean;
   total_views:   boolean;
@@ -287,6 +309,7 @@ export const api = {
       const { url } = await post<{ url: string }>("/api/oauth/instagram");
       window.location.href = url;
     },
+    stats: () => get<InstagramStatsResponse>("/api/instagram/stats"),
   },
 
   /** Authenticated user's own profile */

@@ -1,4 +1,4 @@
-# Tether 2.0 — Project Context
+# Statvora — Project Context
 
 Creator intelligence platform. Creators connect social accounts, get a unified analytics dashboard, and share a verified metrics link with brands/agencies — no screenshots, no manual reports.
 
@@ -17,26 +17,26 @@ Tether2.0/
 
 | App | URL |
 |---|---|
-| Frontend | https://tether-frontend.vercel.app |
-| Backend API | https://tether-backend-peach.vercel.app |
+| Frontend | https://statvora.in |
+| Backend API | https://api.statvora.in |
 | Supabase | https://vywuvfjjqvanimizbero.supabase.co |
-| Admin panel | https://tether-frontend.vercel.app/admin |
-| API docs | https://tether-frontend.vercel.app/docs |
-| Pricing | https://tether-frontend.vercel.app/pricing |
+| Admin panel | https://statvora.in/admin |
+| API docs | https://statvora.in/docs |
+| Pricing | https://statvora.in/pricing |
 
 ### Vercel project IDs
 
-| Project | ID |
-|---|---|
-| tether-frontend | `prj_oMzm5KVXaRvZ3LgqKw0RooLln0JM` |
-| tether-backend | `prj_0L6EgRsLiPqVbdXnSF6ri7n5xrhg` |
-| Vercel Org | `team_w61EPm8QPeCRNJAt1TAYUX2a` |
+| Project | Vercel name | ID |
+|---|---|---|
+| tether-frontend | `statvora-frontend` | `prj_7bF4HTZL1AATeT9CXOpAcXdpDX9I` |
+| tether-backend | `statvora-backend` | `prj_DwCyPlnCTFDbE3vGTnowRTboTynv` |
+| Vercel Org | — | `team_w61EPm8QPeCRNJAt1TAYUX2a` |
 
 ### CI/CD
 
-GitHub Actions (`.github/workflows/deploy.yml`) deploys both apps to Vercel production on every push to `main`. Secrets already set in the repo: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_FRONTEND`, `VERCEL_PROJECT_ID_BACKEND`. Each app deploys in a parallel job using `npx vercel --prod --yes` from its subdirectory.
+GitHub Actions (`.github/workflows/deploy.yml`) deploys both apps to Vercel production on every push to `main` in two parallel jobs. Secrets set in repo: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_FRONTEND`, `VERCEL_PROJECT_ID_BACKEND`.
 
-If auto-deploy breaks, manually redeploy:
+Manual redeploy:
 ```bash
 cd tether-frontend && npx vercel --prod
 cd tether-backend  && npx vercel --prod
@@ -56,7 +56,7 @@ Three roles stored in `profiles.user_type` and mirrored in Supabase JWT `user_me
 
 Role embedded in JWT at signup:
 ```typescript
-supabase.auth.signUp({ options: { data: { user_type: "creator" | "business" } } })
+supabase.auth.signUp({ options: { data: { user_type: "creator" | "business", full_name, username } } })
 ```
 
 `is_admin` must be set manually — see "Admin accounts" section.
@@ -85,7 +85,7 @@ supabase.auth.signUp({ options: { data: { user_type: "creator" | "business" } } 
 | Metric visibility toggles | `/dashboard` |
 | Profile view stats widget (weekly / daily chart) | `/dashboard` |
 | Shareable public profile link `/c/:username` | `/dashboard` |
-| Edit profile (username, bio, avatar, category, stage) | `/settings` |
+| Edit profile (name, username, bio, avatar, category, stage) | `/settings` |
 | Browse & search business profiles | `/businesses` |
 | Real-time messaging with businesses | `/messages` |
 | Daily automated YouTube snapshot | Background cron 00:05 UTC |
@@ -142,8 +142,8 @@ All writes scoped to API key owner — structurally impossible to modify another
 | Route | Who | Purpose |
 |---|---|---|
 | `/login` | Public | Email or username + password; Google OAuth; Creator/Business toggle |
-| `/signup` | Public | Role picker → email/password form (company_name for business) |
-| `/onboarding` | Creator | Multi-step profile setup wizard |
+| `/signup` | Public | Role picker → First/Last name + email/password form |
+| `/onboarding` | Creator | Multi-step profile setup wizard (username pre-filled from signup) |
 | `/dashboard` | Creator | YouTube analytics, visibility toggles, public profile link |
 | `/businesses` | Creator | Browse & message business profiles |
 | `/messages` | Both | Split-panel Realtime chat |
@@ -170,7 +170,7 @@ All writes scoped to API key owner — structurally impossible to modify another
 ### Auth & identity
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/auth/callback` | PKCE code exchange → session cookies |
+| GET | `/api/auth/google/code` | Google OAuth2 code exchange → `signInWithIdToken` → redirect to `/auth/google/complete` |
 | POST | `/api/auth/logout` | Sign out, clear cookies |
 | GET | `/api/me` | Current user id + email |
 | POST | `/api/auth/resolve-email` | Username → email lookup (no auth); used by login page |
@@ -284,8 +284,8 @@ All writes scoped to API key owner — structurally impossible to modify another
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID PK | matches `auth.users.id` |
-| `username` | text UNIQUE | used for login; resolved to email by `/api/auth/resolve-email` |
-| `full_name` | text | creator display name |
+| `username` | text UNIQUE | auto-generated at signup (`firstName + 6 random chars`); user can change in Settings |
+| `full_name` | text | collected at signup (First + Last name); display name for creators |
 | `company_name` | text | business display name |
 | `user_type` | text | `'creator'` \| `'business'` |
 | `metric_visibility` | JSONB | `{ subscribers, total_views, video_count, avg_views, view_chart, recent_videos }` |
@@ -318,7 +318,7 @@ All writes scoped to API key owner — structurally impossible to modify another
 | `20260507000004_api_keys.sql` | `api_keys`, RLS |
 | `20260508000001_subscriptions.sql` | All subscription tables, feature defs, seeded plans, RLS, RPC |
 
-Apply new migrations: `cd tether-backend && npx supabase db push` (project is linked to `vywuvfjjqvanimizbero`).
+Apply new migrations: `cd tether-backend && npx supabase db push` (project linked to `vywuvfjjqvanimizbero`).
 
 ---
 
@@ -333,7 +333,7 @@ Apply new migrations: `cd tether-backend && npx supabase db push` (project is li
 | Growth | $19/mo | $190/yr | $99/mo | $990/yr |
 | Enterprise | Contact sales | Contact sales | Contact sales | Contact sales |
 
-Enterprise shows a `mailto:` button using `platform_settings.sales_email` (default: `sutharhimanshu98@gmail.com`).
+Enterprise shows a `mailto:` button using `platform_settings.sales_email`.
 
 ### Feature gating (`lib/featureGuard.ts`)
 
@@ -361,21 +361,49 @@ Admin steps once keys are set:
 
 ## Auth flows
 
+### Signup — email
+1. User picks role (creator/business) then enters **First name**, Last name, email, password.
+2. `supabase.auth.signUp()` called with `options.data = { user_type, full_name, username }`.
+3. `username` is auto-generated as `firstName + 6 random alphanumeric chars` (e.g. `jane4x9m2k`).
+4. If session is live immediately: `PUT /api/profile` called to persist profile row right away.
+5. Creator → `/onboarding` (username field pre-filled); Business → `/discover`.
+
 ### Login — email or username
 1. User types email or username into the identifier field.
 2. If no `@`: frontend calls `POST /api/auth/resolve-email` with `{ identifier }`.
 3. Backend looks up `profiles.username` → fetches email via `auth.admin.getUserById()` → returns `{ email }`.
 4. Frontend calls `supabase.auth.signInWithPassword({ email, password })`.
 
-### Google OAuth (PKCE)
-1. `supabase.auth.signInWithOAuth()` client-side → `redirectTo: /api/auth/callback`
-2. Browser → Google → callback with `?code=`
-3. Server route exchanges code, stamps cookies, redirects to role home
-4. `localStorage.tether_intended_user_type` carries intended role through the redirect (cleared after callback reads it)
+### Google OAuth (custom flow)
+1. Signup/login page builds Google OAuth URL manually (scope: `openid email profile`).
+2. Redirect URI: `<origin>/api/auth/google/code` (frontend Next.js API route).
+3. Google redirects back with `?code=`.
+4. `/api/auth/google/code` exchanges code with Google token endpoint (server-side, uses `GOOGLE_CLIENT_SECRET`).
+5. Calls `supabase.auth.signInWithIdToken({ provider: "google", token: id_token })`.
+6. Redirects to `/auth/google/complete`.
+7. `/auth/google/complete` (client component):
+   - Reads `_pending_user_type` from localStorage (set before redirect).
+   - Extracts `full_name` from `user.user_metadata.full_name` (Supabase populates from Google ID token).
+   - Generates `username = givenName + 6 random chars`.
+   - Calls `supabase.auth.updateUser({ data: { user_type, full_name } })`.
+   - Calls `PUT /api/profile` to persist the profile row.
+   - Clears `_pending_user_type`, `_pending_full_name`, `_pending_company` from localStorage.
+   - Redirects to `/onboarding` (new creator) or `/discover` (business).
+
+**localStorage keys used during OAuth:**
+- `_pending_user_type` — `"creator"` | `"business"`
+- `_pending_full_name` — name typed before Google redirect (if any)
+- `_pending_company` — company name for business signups
 
 ### Session rules
 - Always `supabase.auth.getUser()` server-side — never `getSession()` alone
-- Always `127.0.0.1` locally — `localhost` breaks cookie domain matching with Supabase
+- Always use `127.0.0.1` locally — `localhost` breaks cookie domain matching with Supabase
+
+---
+
+## CORS
+
+Handled by `tether-backend/middleware.ts` (not `vercel.json`). It reads `FRONTEND_URL` env var and sets `Access-Control-Allow-Origin` to match. Both the local dev origin (`http://127.0.0.1:3001`) and the production origin (`https://statvora.in`) are allowed simultaneously.
 
 ---
 
@@ -443,45 +471,62 @@ curl -X POST http://localhost:54321/functions/v1/daily-snapshot \
 
 ## Local dev setup
 
+Both apps connect to the **production Supabase instance** locally. No local Supabase required.
+
 ```bash
-# 1. Start Supabase (from tether-backend/)
-supabase start
-
-# 2. Apply migrations
-supabase db reset
-
-# 3. Backend (port 3000) — tether-backend/.env.local:
-# NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
-# NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=<from supabase start>
-# SUPABASE_SERVICE_ROLE_KEY=<from supabase start>
-# ENCRYPTION_SECRET=<32+ random chars>
-# GOOGLE_CLIENT_ID=<Google Cloud>
-# GOOGLE_CLIENT_SECRET=<Google Cloud>
-# FRONTEND_URL=http://127.0.0.1:3001
-# CRON_SECRET=tether_cron_secret_local
-# STRIPE_SECRET_KEY=sk_test_...   (optional)
-# STRIPE_WEBHOOK_SECRET=whsec_... (optional)
+# Terminal 1 — backend (port 3000)
 cd tether-backend && npm run dev
 
-# 4. Frontend (port 3001) — tether-frontend/.env.local:
-# NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=<from supabase start>
-# NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:3000
+# Terminal 2 — frontend (port 3001)
 cd tether-frontend && npm run dev
 ```
 
-Google Cloud redirect URIs:
+**`tether-backend/.env.local`:**
 ```
-http://127.0.0.1:54321/auth/v1/callback         ← Supabase login
-http://127.0.0.1:3000/api/oauth/youtube/callback ← YouTube connect
+NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+FRONTEND_URL=http://127.0.0.1:3001
+NEXT_PUBLIC_SUPABASE_URL=https://vywuvfjjqvanimizbero.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<production anon key>
+SUPABASE_SERVICE_ROLE_KEY=<production service role key>
+ENCRYPTION_SECRET=<must match production value>
+GOOGLE_CLIENT_ID=<Google Cloud OAuth client>
+GOOGLE_CLIENT_SECRET=<Google Cloud OAuth secret>
+YOUTUBE_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/youtube/callback
+CRON_SECRET=tether_cron_secret_local
+STRIPE_SECRET_KEY=sk_test_...   (optional)
+STRIPE_WEBHOOK_SECRET=whsec_... (optional)
 ```
+
+**`tether-frontend/.env.local`:**
+```
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<Google Cloud OAuth client>
+GOOGLE_CLIENT_SECRET=<Google Cloud OAuth secret>
+NEXT_PUBLIC_SUPABASE_URL=https://vywuvfjjqvanimizbero.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<production anon key>
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:3000
+NEXT_PUBLIC_APP_URL=http://127.0.0.1:3001
+```
+
+Get production Supabase keys:
+```bash
+cd tether-backend && supabase projects api-keys --project-ref vywuvfjjqvanimizbero
+```
+
+**Google Cloud redirect URIs to register:**
+```
+http://127.0.0.1:3001/api/auth/google/code  ← local login/signup
+http://127.0.0.1:3000/api/oauth/youtube/callback ← local YouTube connect
+https://statvora.in/api/auth/google/code         ← production login/signup
+https://api.statvora.in/api/oauth/youtube/callback ← production YouTube connect
+```
+
+> Always use `127.0.0.1`, not `localhost` — cookie domain matching requires it.
 
 ---
 
 ## Admin accounts
 
-**Production admin:** email `hspace@tether.so`, username `hspace`, password `hspace`, `is_admin: true`, `user_type: business`.
+**Primary admin:** email `sutharhimanshu98@gmail.com`, username `iamhspace`, `is_admin: true`.
 
 **Promoting a new admin:**
 ```sql

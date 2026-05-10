@@ -173,3 +173,35 @@ export async function getInstagramAccount(accessToken: string): Promise<Instagra
     "No Instagram business account found. Make sure your Instagram account is a Professional account and is linked to a Facebook Page."
   );
 }
+
+export interface InstagramPost {
+  id:            string;
+  media_type:    "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url:     string;
+  thumbnail_url?: string;
+  caption?:      string;
+  timestamp:     string;
+  like_count:    number;
+  comments_count: number;
+}
+
+/**
+ * Fetches recent media from an Instagram business account.
+ * Requires instagram_basic permission on the access token.
+ */
+export async function getInstagramMedia(
+  accessToken: string,
+  igUserId: string,
+  limit = 9,
+): Promise<InstagramPost[]> {
+  const fields = "id,media_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count";
+  const res = await fetch(
+    `${cfg.fbApiBase}/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`,
+    { cache: "no-store" },
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error?.message ?? "Failed to fetch Instagram media");
+  }
+  return (data.data ?? []) as InstagramPost[];
+}

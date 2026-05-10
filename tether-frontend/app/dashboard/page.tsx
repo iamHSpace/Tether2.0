@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { api, ApiError, YouTubeStatsResponse, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
+import { api, ApiError, YouTubeStatsResponse, InstagramStatsResponse, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
 import { fmt, timeAgo, cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
-  IconUsers, IconEye, IconVideo, IconTrendUp, IconYoutube,
+  IconUsers, IconEye, IconVideo, IconTrendUp, IconYoutube, IconInstagram,
   IconRefresh, IconExternal, IconThumbUp, IconChat,
   IconCopy, IconCheck, IconBell, IconAlert,
 } from "@/components/ui/Icons";
@@ -101,10 +101,20 @@ function friendlyError(err: unknown): string {
     msg.includes("ERR_CONNECTION") ||
     msg.includes("Load failed")           // Safari equivalent of "Failed to fetch"
   ) {
-    return "Could not reach the server. Check your connection and try again.";
+    return "Could not reach the server. Make sure the backend is running on port 3000.";
   }
   if (msg.includes("quota") || msg.includes("Quota")) {
     return "YouTube API quota exceeded. Stats will refresh automatically tomorrow.";
+  }
+  // Google OAuth errors
+  if (msg === "access_denied") {
+    return "Google blocked access. Make sure your Google account is added as a test user in Google Cloud Console → APIs & Services → OAuth consent screen → Test users.";
+  }
+  if (msg === "invalid_or_expired_state") {
+    return "OAuth session expired. Please try connecting again.";
+  }
+  if (msg === "redirect_uri_mismatch") {
+    return "OAuth redirect URI mismatch. Check that http://127.0.0.1:3000/api/oauth/youtube/callback is added in Google Cloud Console → Credentials.";
   }
   return msg;
 }
@@ -270,13 +280,24 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing]             = useState(false);
   const [ytConnecting, setYtConnecting]         = useState(false);
   const [ytConnectError, setYtConnectError]     = useState<string | null>(null);
+  const [igData, setIgData]                     = useState<InstagramStatsResponse | null>(null);
+  const [igError, setIgError]                   = useState<string | null>(null);
+  const [igExpired, setIgExpired]               = useState(false);
+  const [igConnected, setIgConnected]           = useState<boolean | null>(null);
+  const [igConnecting, setIgConnecting]         = useState(false);
+  const [igConnectError, setIgConnectError]     = useState<string | null>(null);
   const [showAllVideos, setShowAllVideos]       = useState(false);
   const [videoSort, setVideoSort]               = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "views", dir: "desc" });
   const [profileViews, setProfileViews]         = useState<{ this_week: number; last_week: number } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("youtube_connected") || params.has("youtube_error")) {
+    if (params.has("youtube_connected") || params.has("youtube_error") ||
+        params.has("instagram_connected") || params.has("instagram_error")) {
+      const ytErr = params.get("youtube_error");
+      if (ytErr) setYtConnectError(friendlyError(new Error(decodeURIComponent(ytErr))));
+      const igErr = params.get("instagram_error");
+      if (igErr) setIgConnectError(decodeURIComponent(igErr));
       window.history.replaceState({}, "", "/dashboard");
     }
   }, []);
@@ -293,9 +314,10 @@ export default function DashboardPage() {
       if (intendedType === "business") { window.location.href = "/discover"; return; }
     }
 
-    const [profileResult, ytResult] = await Promise.allSettled([
+    const [profileResult, ytResult, igResult] = await Promise.allSettled([
       api.profile.get(),
       api.youtube.stats(),
+      api.instagram.stats(),
     ]);
 
     if (profileResult.status === "fulfilled") {
@@ -318,25 +340,49 @@ export default function DashboardPage() {
       const err = ytResult.reason;
       const status = err instanceof ApiError ? err.status : 0;
       if (status === 404) {
-        // Never connected — show connect CTA, no error banner
         setYtConnected(false);
         setYtExpired(false);
         setYtError(null);
       } else if (status === 401) {
-        // Token expired — show reconnect CTA
         setYtConnected(false);
         setYtExpired(true);
         setYtError(null);
       } else if (status === 0) {
-        // Network / server unreachable — don't claim connected, just show error banner
         setYtConnected(null);
         setYtExpired(false);
         setYtError(friendlyError(err));
       } else {
-        // YouTube API error (quota, etc.) — server is up but YT call failed
         setYtConnected(true);
         setYtExpired(false);
         setYtError(friendlyError(err));
+      }
+    }
+
+    if (igResult.status === "fulfilled") {
+      setIgData(igResult.value);
+      setIgConnected(true);
+      setIgError(null);
+      setIgExpired(false);
+    } else {
+      const err = igResult.reason;
+      const status = err instanceof ApiError ? err.status : 0;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (status === 404 || msg.includes("not_connected")) {
+        setIgConnected(false);
+        setIgExpired(false);
+        setIgError(null);
+      } else if (status === 401 || msg.includes("token_expired")) {
+        setIgConnected(false);
+        setIgExpired(true);
+        setIgError(null);
+      } else if (status === 0) {
+        setIgConnected(null);
+        setIgExpired(false);
+        setIgError(friendlyError(err));
+      } else {
+        setIgConnected(true);
+        setIgExpired(false);
+        setIgError(friendlyError(err));
       }
     }
 
@@ -380,6 +426,17 @@ export default function DashboardPage() {
     } catch (err) {
       setYtConnectError(friendlyError(err));
       setYtConnecting(false);
+    }
+  }
+
+  async function connectInstagram() {
+    setIgConnecting(true);
+    setIgConnectError(null);
+    try {
+      await api.instagram.connect(); // redirects on success
+    } catch (err) {
+      setIgConnectError(err instanceof Error ? err.message : String(err));
+      setIgConnecting(false);
     }
   }
 
@@ -537,8 +594,9 @@ export default function DashboardPage() {
 
           {/* ── Platform Connection ────────────────────────────────────────── */}
           <section>
-            <SectionHeader title="Platform Connection" />
-            <div className="max-w-lg">
+            <SectionHeader title="Platform Connections" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+              {/* YouTube card */}
               {loading ? (
                 <Skeleton className="h-20 rounded-2xl" />
               ) : ytData ? (
@@ -576,15 +634,56 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">YouTube</p>
-                      <p className="text-xs text-gray-400">{ytExpired ? "Session expired — reconnect to continue" : "Not connected"}</p>
+                      <p className="text-xs text-gray-400">{ytExpired ? "Session expired — reconnect" : "Not connected"}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={connectYouTube}
-                    disabled={ytConnecting}
+                  <button onClick={connectYouTube} disabled={ytConnecting}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${ytExpired ? "bg-amber-500 hover:bg-amber-600" : "bg-red-600 hover:bg-red-700"}`}>
                     <IconYoutube size={12} className={cn("text-white", ytConnecting && "animate-pulse")} />
                     {ytConnecting ? "Redirecting…" : ytExpired ? "Reconnect" : "Connect"}
+                  </button>
+                </div>
+              )}
+
+              {/* Instagram card */}
+              {loading ? (
+                <Skeleton className="h-20 rounded-2xl" />
+              ) : igData ? (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {igData.profile_picture_url
+                      ? <img src={igData.profile_picture_url} alt={igData.username} width={40} height={40} className="rounded-full ring-2 ring-pink-100" />
+                      : <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"><IconInstagram size={18} className="text-white" /></div>
+                    }
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">@{igData.username}</p>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Live</span>
+                      </div>
+                      <p className="text-xs text-gray-400">{fmt(igData.followers_count)} followers</p>
+                    </div>
+                  </div>
+                  <button onClick={connectInstagram} disabled={igConnecting}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50">
+                    <IconRefresh size={11} className={igConnecting ? "animate-spin" : ""} />
+                    Re-connect
+                  </button>
+                </div>
+              ) : (
+                <div className={`bg-white rounded-2xl p-4 border-2 border-dashed flex items-center justify-between ${igExpired ? "border-amber-200" : "border-pink-100"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${igExpired ? "bg-amber-50 border-amber-100" : "bg-pink-50 border-pink-100"}`}>
+                      <IconInstagram size={18} className={igExpired ? "text-amber-400" : "text-pink-400"} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Instagram</p>
+                      <p className="text-xs text-gray-400">{igExpired ? "Session expired — reconnect" : "Not connected"}</p>
+                    </div>
+                  </div>
+                  <button onClick={connectInstagram} disabled={igConnecting}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${igExpired ? "bg-amber-500 hover:bg-amber-600" : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"}`}>
+                    <IconInstagram size={12} className={cn("text-white", igConnecting && "animate-pulse")} />
+                    {igConnecting ? "Redirecting…" : igExpired ? "Reconnect" : "Connect"}
                   </button>
                 </div>
               )}
@@ -593,6 +692,8 @@ export default function DashboardPage() {
 
           {ytError        && <ErrorAlert message={ytError}        onRetry={refreshMetrics} />}
           {ytConnectError && <ErrorAlert message={ytConnectError} onRetry={connectYouTube} />}
+          {igError        && <ErrorAlert message={igError}        onRetry={connectInstagram} />}
+          {igConnectError && <ErrorAlert message={igConnectError} onRetry={connectInstagram} />}
 
           {/* ── No YouTube state ───────────────────────────────────────────── */}
           {!loading && ytConnected === false && !ytData && !ytExpired && (
@@ -871,6 +972,61 @@ export default function DashboardPage() {
                 </div>
               </section>
 
+            </>
+          )}
+
+          {/* ── Instagram Stats ───────────────────────────────────────────── */}
+          {igData && (
+            <>
+              <section>
+                <SectionHeader title="Instagram Overview" subtitle="Stats pulled directly from Instagram Graph API." />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <StatCard label="Followers"  value={fmt(igData.followers_count)} icon={IconUsers}    bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+                  <StatCard label="Total Posts" value={fmt(igData.media_count)}    icon={IconVideo}    bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+                  {igData.token_expires_at && (
+                    (() => {
+                      const daysLeft = Math.ceil((new Date(igData.token_expires_at).getTime() - Date.now()) / 86400000);
+                      return daysLeft <= 7 ? (
+                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-xs">
+                          <IconAlert size={14} className="shrink-0" />
+                          Token expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""} — reconnect soon
+                        </div>
+                      ) : null;
+                    })()
+                  )}
+                </div>
+              </section>
+
+              {igData.recent_posts.length > 0 && (
+                <section>
+                  <SectionHeader title="Recent Posts" subtitle="Latest 9 posts from your Instagram account." />
+                  <div className="grid grid-cols-3 gap-2 max-w-lg">
+                    {igData.recent_posts.slice(0, 9).map(post => {
+                      const thumb = post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
+                      return (
+                        <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                          {thumb
+                            ? <img src={thumb} alt={post.caption ?? "Post"} className="w-full h-full object-cover" loading="lazy" />
+                            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                                <IconInstagram size={20} className="text-pink-300" />
+                              </div>
+                          }
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-xs font-semibold">
+                            <span>♥ {fmt(post.like_count)}</span>
+                            <span>💬 {fmt(post.comments_count)}</span>
+                          </div>
+                          {post.media_type === "VIDEO" && (
+                            <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
+                          )}
+                          {post.media_type === "CAROUSEL_ALBUM" && (
+                            <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⊞</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
             </>
           )}
 

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
-
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -17,40 +17,46 @@ const GOOGLE_SVG = (
 
 type UserType = "creator" | "business";
 
+function generateUsername(firstName: string): string {
+  const base   = firstName.toLowerCase().replace(/[^a-z0-9]/g, "") || "user";
+  const chars  = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const suffix = Array.from({ length: 6 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
+  return base + suffix;
+}
+
 export default function SignupPage() {
-  const [step, setStep]         = useState<"type" | "form">("type");
-  const [userType, setUserType] = useState<UserType>("creator");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm]   = useState("");
-  const [company, setCompany]   = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [step, setStep]           = useState<"type" | "form">("type");
+  const [userType, setUserType]   = useState<UserType>("creator");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [confirm, setConfirm]     = useState("");
+  const [company, setCompany]     = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
   function pickType(type: UserType) {
     setUserType(type);
     setStep("form");
   }
 
-  // ── Keep localStorage in sync so /auth/google/complete knows the role ────────
+  // Keep localStorage in sync for the Google OAuth callback
   useEffect(() => {
     if (step !== "form") return;
     localStorage.setItem("_pending_user_type", userType);
+    localStorage.setItem("_pending_full_name", `${firstName.trim()} ${lastName.trim()}`.trim());
     if (userType === "business") {
       localStorage.setItem("_pending_company", company);
     } else {
       localStorage.removeItem("_pending_company");
     }
-  }, [step, userType, company]);
+  }, [step, userType, firstName, lastName, company]);
 
-  // ── Google OAuth2 — standard redirect, shows "statvora.in" in consent screen ─
   function handleGoogleSignUp() {
-    // localStorage is already up-to-date from the effect above.
-    // Always use the canonical (non-www) origin so only one redirect URI
-    // needs to be registered in Google Cloud Console.
-    const canonicalOrigin =
-      window.location.origin.replace("://www.", "://");
+    const canonicalOrigin = window.location.origin.replace("://www.", "://");
     const params = new URLSearchParams({
       client_id:     GOOGLE_CLIENT_ID,
       redirect_uri:  `${canonicalOrigin}/api/auth/google/code`,
@@ -58,18 +64,25 @@ export default function SignupPage() {
       scope:         "openid email profile",
       access_type:   "online",
     });
-    window.location.href =
-      `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    if (!firstName.trim()) { setError("First name is required."); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
     if (password.length < 6)  { setError("Password must be at least 6 characters."); return; }
 
     setLoading(true); setError(null);
 
-    const metadata: Record<string, string> = { user_type: userType };
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const username = generateUsername(firstName.trim());
+
+    const metadata: Record<string, string> = {
+      user_type: userType,
+      full_name: fullName,
+      username,
+    };
     if (userType === "business" && company.trim()) {
       metadata.company_name = company.trim();
     }
@@ -82,12 +95,11 @@ export default function SignupPage() {
 
     if (signupError) { setError(signupError.message); setLoading(false); return; }
 
-    if (data.session) {
-      window.location.href = userType === "business" ? "/discover" : "/onboarding";
-    } else {
-      setDone(true);
-      setLoading(false);
-    }
+    // Email confirmation is disabled — session is always live immediately after signup
+    try {
+      await api.profile.update({ full_name: fullName, username, user_type: userType });
+    } catch { /* non-fatal — onboarding will retry */ }
+    window.location.href = userType === "business" ? "/discover" : "/onboarding";
   }
 
   // ── Type selection ────────────────────────────────────────────────────────────
@@ -134,25 +146,6 @@ export default function SignupPage() {
     );
   }
 
-  // ── Email confirmation sent ────────────────────────────────────────────────────
-
-  if (done) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <div className="card p-10 max-w-sm w-full text-center">
-          <div className="text-5xl mb-4">✉️</div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Check your inbox</h2>
-          <p className="text-gray-500 text-sm leading-relaxed">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
-          </p>
-          <a href="/login" className="inline-block mt-6 text-brand-600 text-sm font-medium hover:text-brand-700">
-            Back to sign in →
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   // ── Signup form ───────────────────────────────────────────────────────────────
 
   const isCreator = userType === "creator";
@@ -170,7 +163,6 @@ export default function SignupPage() {
           <p className="text-gray-500 text-sm mt-1">
             {isCreator ? "Your verified creator profile starts here" : "Find and connect with verified creators"}
           </p>
-          {/* Selected role badge + back link */}
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
               isCreator
@@ -201,7 +193,6 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Google sign-up — standard OAuth2 redirect, shows statvora.in in consent */}
           <button
             type="button"
             onClick={handleGoogleSignUp}
@@ -220,6 +211,33 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSignup} className="space-y-4">
+            {/* Name row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
+                <input
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  disabled={loading}
+                  placeholder="Jane"
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Last name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  disabled={loading}
+                  placeholder="Smith"
+                  className="input"
+                />
+              </div>
+            </div>
+
             {!isCreator && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Company name</label>

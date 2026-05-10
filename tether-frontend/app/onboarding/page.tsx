@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 
@@ -41,6 +41,21 @@ export default function OnboardingPage() {
   const [username, setUsername] = useState("");
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState<string | null>(null);
+
+  // Pre-fill username from existing profile (created during signup) or auth metadata
+  useEffect(() => {
+    async function prefill() {
+      try {
+        const { profile } = await api.profile.get().then(r => r);
+        if (profile.username) { setUsername(profile.username); return; }
+      } catch { /* ignore */ }
+      // Fallback: read from auth metadata (set at signup before email confirmation)
+      const { data: { user } } = await supabase.auth.getUser();
+      const meta = user?.user_metadata?.username as string | undefined;
+      if (meta) setUsername(meta);
+    }
+    prefill();
+  }, []);
 
   const current   = STEPS[step];
   const selected  = answers[step];

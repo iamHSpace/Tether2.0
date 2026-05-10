@@ -2,22 +2,21 @@
 
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 
-/**
- * /auth/google/complete
- *
- * Landing page after the GIS redirect callback has exchanged the credential
- * for a Supabase session.  This client component:
- *   1. Reads the now-active session to get the user
- *   2. If new (no user_type), applies the pending role stored in localStorage
- *   3. Redirects to the appropriate page
- */
+function generateUsername(firstName: string): string {
+  const base   = firstName.toLowerCase().replace(/[^a-z0-9]/g, "") || "user";
+  const chars  = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const suffix = Array.from({ length: 6 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
+  return base + suffix;
+}
+
 export default function GoogleAuthComplete() {
   useEffect(() => {
     async function finalize() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
         window.location.href = "/login?error=session_failed";
@@ -28,27 +27,43 @@ export default function GoogleAuthComplete() {
       let isNew    = false;
 
       if (!userType) {
-        // New user — apply the intent stored before the Google redirect
-        isNew = true;
-        const pendingType    = localStorage.getItem("_pending_user_type") as
-          | "creator"
-          | "business"
-          | null;
-        const pendingCompany = localStorage.getItem("_pending_company");
+        isNew    = true;
+        userType = (localStorage.getItem("_pending_user_type") as "creator" | "business" | null) ?? "creator";
+      }
 
-        userType = pendingType ?? "creator";
+      if (isNew) {
+        // Google populates full_name (and given_name) from the ID token via Supabase
+        const fullName =
+          (user.user_metadata?.full_name as string | undefined) ||
+          (user.user_metadata?.name      as string | undefined) ||
+          (localStorage.getItem("_pending_full_name"))           ||
+          "";
+
+        const givenName = (user.user_metadata?.given_name as string | undefined) || fullName.split(" ")[0] || "";
+        const username  = generateUsername(givenName || fullName);
+        const company   = localStorage.getItem("_pending_company") ?? undefined;
+
+        // Embed role + name in auth JWT metadata
         const metadata: Record<string, string> = { user_type: userType };
-        if (userType === "business" && pendingCompany?.trim()) {
-          metadata.company_name = pendingCompany.trim();
-        }
-
+        if (fullName)                                   metadata.full_name    = fullName;
+        if (userType === "business" && company?.trim()) metadata.company_name = company.trim();
         await supabase.auth.updateUser({ data: metadata });
 
+        // Create profile row so name + username are persisted from day one
+        try {
+          await api.profile.update({
+            full_name:    fullName || null,
+            username,
+            user_type:    userType as "creator" | "business",
+            company_name: userType === "business" && company?.trim() ? company.trim() : undefined,
+          });
+        } catch { /* non-fatal */ }
+
         localStorage.removeItem("_pending_user_type");
+        localStorage.removeItem("_pending_full_name");
         localStorage.removeItem("_pending_company");
       }
 
-      // Route to the right place
       if (userType === "business") {
         window.location.href = "/discover";
       } else {
