@@ -38,7 +38,18 @@ export async function GET(req: NextRequest) {
   }
 
   // 3. Auto-refresh if expiring soon
-  let accessToken = decrypt(row.access_token);
+  let accessToken: string;
+  try {
+    accessToken = decrypt(row.access_token);
+  } catch {
+    // Decryption failed — token was encrypted with a different key (e.g. after key rotation).
+    // Delete the corrupt row so the frontend shows "not connected" on next load.
+    await adminClient.from("platform_tokens").delete().eq("id", row.id);
+    return NextResponse.json(
+      { error: "YouTube token is invalid. Please reconnect your YouTube account." },
+      { status: 401 }
+    );
+  }
   const expiry = row.token_expiry ? new Date(row.token_expiry) : null;
 
   if (!expiry || expiry.getTime() - Date.now() < TOKEN_REFRESH_BUFFER_MS) {
@@ -50,7 +61,17 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      const refreshed = await refreshAccessToken(decrypt(row.refresh_token));
+      let decryptedRefresh: string;
+      try {
+        decryptedRefresh = decrypt(row.refresh_token);
+      } catch {
+        await adminClient.from("platform_tokens").delete().eq("id", row.id);
+        return NextResponse.json(
+          { error: "YouTube token is invalid. Please reconnect your YouTube account." },
+          { status: 401 }
+        );
+      }
+      const refreshed = await refreshAccessToken(decryptedRefresh);
       accessToken = refreshed.access_token;
 
       await adminClient
