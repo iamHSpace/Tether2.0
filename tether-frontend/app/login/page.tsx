@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -14,27 +15,99 @@ const GOOGLE_SVG = (
   </svg>
 );
 
+declare global {
+  interface Window {
+    google: {
+      accounts: {
+        id: {
+          initialize: (config: object) => void;
+          renderButton: (el: HTMLElement, config: object) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
 type UserType = "creator" | "business";
 
 export default function LoginPage() {
   const [userType, setUserType]     = useState<UserType>("creator");
-  const [identifier, setIdentifier] = useState("");   // email or username
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword]     = useState("");
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [gisReady, setGisReady]     = useState(false);
+
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+  const userTypeRef  = useRef<UserType>("creator");
+
+  // Keep ref in sync so the GIS callback always gets current userType
+  useEffect(() => { userTypeRef.current = userType; }, [userType]);
 
   const urlError =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("error")
       : null;
 
+  // ── GIS callback (called by Google after account selection) ──────────────────
+  const handleCredential = useCallback(async (response: { credential: string }) => {
+    setLoading(true);
+    setError(null);
+    localStorage.setItem("statvora_intended_user_type", userTypeRef.current);
+
+    const { data, error: authErr } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: response.credential,
+    });
+
+    if (authErr) {
+      setError(authErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const type = (data.user?.user_metadata?.user_type as string | undefined) ?? userTypeRef.current;
+    window.location.href = type === "business" ? "/discover" : "/dashboard";
+  }, []);
+
+  // ── Load GIS script + render invisible Google button over our button ─────────
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGisReady(true);
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, []);
+
+  useEffect(() => {
+    if (!gisReady || !googleBtnRef.current) return;
+
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredential,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      width: googleBtnRef.current.parentElement?.offsetWidth ?? 400,
+      logo_alignment: "center",
+    });
+  }, [gisReady, handleCredential]);
+
+  // ── Email / password login ───────────────────────────────────────────────────
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError(null);
 
     const raw = identifier.trim().toLowerCase();
 
-    // Resolve username → email if needed
     let email = raw;
     if (!raw.includes("@")) {
       try {
@@ -54,22 +127,10 @@ export default function LoginPage() {
     const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
     if (authErr) { setError(authErr.message); setLoading(false); return; }
 
-    // Middleware routes to the correct home based on user_type in JWT
     window.location.href = userType === "business" ? "/discover" : "/dashboard";
   }
 
-  async function handleGoogleLogin() {
-    setLoading(true); setError(null);
-    localStorage.setItem("statvora_intended_user_type", userType);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
-    });
-    if (error) { setError(error.message); setLoading(false); }
-  }
-
   const isCreator = userType === "creator";
-  // Detect whether the user is typing an email or username for the placeholder
   const looksLikeEmail = identifier.includes("@");
 
   return (
@@ -120,11 +181,20 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button onClick={handleGoogleLogin} disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5 disabled:opacity-50">
-            {GOOGLE_SVG}
-            {loading ? "Redirecting…" : "Continue with Google"}
-          </button>
+          {/* Google button — our styled button is visual; invisible GIS button sits on top */}
+          <div className="relative w-full mb-5 rounded-xl overflow-hidden" style={{ height: 48 }}>
+            {/* Visual button (not clickable) */}
+            <div className="absolute inset-0 flex items-center justify-center gap-3 px-4 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 pointer-events-none">
+              {GOOGLE_SVG}
+              {loading ? "Signing in…" : "Continue with Google"}
+            </div>
+            {/* Invisible GIS-rendered button on top */}
+            <div
+              ref={googleBtnRef}
+              className="absolute inset-0 overflow-hidden"
+              style={{ opacity: gisReady ? 0.01 : 0 }}
+            />
+          </div>
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-gray-100" />

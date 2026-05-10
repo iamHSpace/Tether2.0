@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -24,16 +27,78 @@ export default function SignupPage() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [done, setDone]         = useState(false);
+  const [gisReady, setGisReady] = useState(false);
+
+  const googleBtnRef  = useRef<HTMLDivElement>(null);
+  const userTypeRef   = useRef<UserType>("creator");
+  const companyRef    = useRef<string>("");
+
+  useEffect(() => { userTypeRef.current = userType; }, [userType]);
+  useEffect(() => { companyRef.current = company; }, [company]);
 
   function pickType(type: UserType) {
     setUserType(type);
     setStep("form");
   }
 
-  function handleGoogleClick() {
-    // Store intended role so the dashboard can set it in user_metadata after OAuth
-    localStorage.setItem("statvora_intended_user_type", userType);
-  }
+  // ── GIS credential callback ──────────────────────────────────────────────────
+  const handleCredential = useCallback(async (response: { credential: string }) => {
+    setLoading(true);
+    setError(null);
+
+    const currentType = userTypeRef.current;
+    const currentCompany = companyRef.current;
+
+    const { data, error: authErr } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: response.credential,
+    });
+
+    if (authErr) { setError(authErr.message); setLoading(false); return; }
+
+    // Set user_type (and company if business) in metadata
+    const metadata: Record<string, string> = { user_type: currentType };
+    if (currentType === "business" && currentCompany.trim()) {
+      metadata.company_name = currentCompany.trim();
+    }
+    await supabase.auth.updateUser({ data: metadata });
+
+    // Check if new user (no profile yet) or returning user
+    const isNew = !data.user?.user_metadata?.user_type;
+    if (currentType === "creator" && isNew) {
+      window.location.href = "/onboarding";
+    } else {
+      window.location.href = currentType === "business" ? "/discover" : "/dashboard";
+    }
+  }, []);
+
+  // ── Load GIS ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGisReady(true);
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, []);
+
+  useEffect(() => {
+    if (!gisReady || !googleBtnRef.current) return;
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredential,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      width: googleBtnRef.current.parentElement?.offsetWidth ?? 400,
+      logo_alignment: "center",
+    });
+  }, [gisReady, handleCredential]);
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -174,14 +239,18 @@ export default function SignupPage() {
             </div>
           )}
 
-          <a
-            href="/api/auth/login/google"
-            onClick={handleGoogleClick}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all duration-150 mb-5"
-          >
-            {GOOGLE_SVG}
-            Sign up with Google
-          </a>
+          {/* Google button — GIS popup, no redirect */}
+          <div className="relative w-full mb-5 rounded-xl overflow-hidden" style={{ height: 48 }}>
+            <div className="absolute inset-0 flex items-center justify-center gap-3 px-4 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 pointer-events-none">
+              {GOOGLE_SVG}
+              {loading ? "Signing in…" : "Sign up with Google"}
+            </div>
+            <div
+              ref={googleBtnRef}
+              className="absolute inset-0 overflow-hidden"
+              style={{ opacity: gisReady ? 0.01 : 0 }}
+            />
+          </div>
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-gray-100" />
