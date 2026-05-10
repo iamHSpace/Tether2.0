@@ -99,7 +99,13 @@ export default function SettingsPage() {
         setSavedUsername(u);
         if (u) setUsernameStatus("available");
         if (prof.user_type === "business") setUserType("business");
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(
+          msg.toLowerCase().includes("authenticated") || msg.toLowerCase().includes("unauthorized")
+            ? "Session expired — please refresh the page to reload your profile."
+            : "Could not load your profile. Please refresh the page."
+        );
         setProfile(p => ({ ...p, email: user.email ?? "" }));
       }
       setLoading(false);
