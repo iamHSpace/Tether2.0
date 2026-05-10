@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -26,17 +26,14 @@ export default function SignupPage() {
   const [company, setCompany]   = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
-  const [done, setDone]         = useState(false);
-  const [gisReady, setGisReady] = useState(false);
-
-  const googleBtnRef = useRef<HTMLDivElement>(null);
+  const [done, setDone] = useState(false);
 
   function pickType(type: UserType) {
     setUserType(type);
     setStep("form");
   }
 
-  // ── Keep localStorage in sync so the callback page knows the intended role ───
+  // ── Keep localStorage in sync so /auth/google/complete knows the role ────────
   useEffect(() => {
     if (step !== "form") return;
     localStorage.setItem("_pending_user_type", userType);
@@ -47,35 +44,19 @@ export default function SignupPage() {
     }
   }, [step, userType, company]);
 
-  // ── Load GIS ─────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setGisReady(true);
-    document.head.appendChild(script);
-    return () => { document.head.removeChild(script); };
-  }, []);
-
-  useEffect(() => {
-    if (!gisReady || !googleBtnRef.current) return;
-    // Redirect mode: full-page redirect through Google, credential POSTed to
-    // our server — no popup, works in all browsers including Brave.
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      ux_mode: "redirect",
-      login_uri: `${window.location.origin}/api/auth/google/callback`,
-      auto_select: false,
+  // ── Google OAuth2 — standard redirect, shows "statvora.in" in consent screen ─
+  function handleGoogleSignUp() {
+    // localStorage is already up-to-date from the effect above
+    const params = new URLSearchParams({
+      client_id:     GOOGLE_CLIENT_ID,
+      redirect_uri:  `${window.location.origin}/api/auth/google/code`,
+      response_type: "code",
+      scope:         "openid email profile",
+      access_type:   "online",
     });
-    window.google.accounts.id.renderButton(googleBtnRef.current, {
-      type: "standard",
-      theme: "outline",
-      size: "large",
-      width: googleBtnRef.current.parentElement?.offsetWidth ?? 400,
-      logo_alignment: "center",
-    });
-  }, [gisReady]);
+    window.location.href =
+      `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -216,18 +197,17 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Google button — GIS popup, no redirect */}
-          <div className="relative w-full mb-5 rounded-xl overflow-hidden" style={{ height: 48 }}>
-            <div className="absolute inset-0 flex items-center justify-center gap-3 px-4 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 pointer-events-none">
-              {GOOGLE_SVG}
-              {loading ? "Signing in…" : "Sign up with Google"}
-            </div>
-            <div
-              ref={googleBtnRef}
-              className="absolute inset-0 overflow-hidden"
-              style={{ opacity: gisReady ? 0.01 : 0 }}
-            />
-          </div>
+          {/* Google sign-up — standard OAuth2 redirect, shows statvora.in in consent */}
+          <button
+            type="button"
+            onClick={handleGoogleSignUp}
+            disabled={loading}
+            className="w-full mb-5 flex items-center justify-center gap-3 px-4 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            style={{ height: 48 }}
+          >
+            {GOOGLE_SVG}
+            Sign up with Google
+          </button>
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-gray-100" />
