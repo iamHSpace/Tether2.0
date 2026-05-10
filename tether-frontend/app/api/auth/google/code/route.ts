@@ -21,7 +21,9 @@ import { cookies } from "next/headers";
  */
 export async function GET(req: NextRequest) {
   const url    = new URL(req.url);
-  const origin = `${url.protocol}//${url.host}`;
+  // Use the canonical (non-www) origin — must match the redirect_uri sent in
+  // the authorization request and the URI registered in Google Cloud Console.
+  const origin = `${url.protocol}//${url.host.replace(/^www\./, "")}`;
 
   const code  = url.searchParams.get("code");
   const error = url.searchParams.get("error");

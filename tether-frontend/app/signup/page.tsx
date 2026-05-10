@@ -46,10 +46,14 @@ export default function SignupPage() {
 
   // ── Google OAuth2 — standard redirect, shows "statvora.in" in consent screen ─
   function handleGoogleSignUp() {
-    // localStorage is already up-to-date from the effect above
+    // localStorage is already up-to-date from the effect above.
+    // Always use the canonical (non-www) origin so only one redirect URI
+    // needs to be registered in Google Cloud Console.
+    const canonicalOrigin =
+      window.location.origin.replace("://www.", "://");
     const params = new URLSearchParams({
       client_id:     GOOGLE_CLIENT_ID,
-      redirect_uri:  `${window.location.origin}/api/auth/google/code`,
+      redirect_uri:  `${canonicalOrigin}/api/auth/google/code`,
       response_type: "code",
       scope:         "openid email profile",
       access_type:   "online",
