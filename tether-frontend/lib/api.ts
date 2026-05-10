@@ -21,17 +21,7 @@ export class ApiError extends Error {
 // ── Auth header ───────────────────────────────────────────────────────────────
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  let { data: { session } } = await supabase.auth.getSession();
-
-  // Proactively refresh if the token is missing or expires within 60 s.
-  // This prevents a race condition where getUser() triggers an async refresh
-  // but getSession() still returns the old (expired) token.
-  const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
-  if (!session?.access_token || expiresAt < Date.now() + 60_000) {
-    const { data } = await supabase.auth.refreshSession();
-    if (data.session?.access_token) session = data.session;
-  }
-
+  const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
   return { Authorization: `Bearer ${session.access_token}` };
 }
