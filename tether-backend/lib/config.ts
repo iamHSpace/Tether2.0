@@ -65,7 +65,10 @@ export const youtube = {
 
 // ─── Instagram / Facebook OAuth ───────────────────────────────────────────────
 // Instagram Graph API uses Facebook's OAuth infrastructure.
-// Requires a Facebook App with instagram_basic and pages_read_engagement.
+// instagram_basic was removed Dec 2024 — replaced by instagram_business_basic.
+// pages_show_list is required to call GET /me/accounts (list managed Pages).
+// pages_read_engagement is required to read the instagram_business_account
+// field on a Page object (finding the linked IG Business Account).
 
 export const instagram = {
   authUrl:   "https://www.facebook.com/v21.0/dialog/oauth",
@@ -73,7 +76,7 @@ export const instagram = {
   apiBase:   "https://graph.instagram.com/v21.0",
   fbApiBase: "https://graph.facebook.com/v21.0",
   // Scopes to request from the user
-  scopes:    "instagram_basic,pages_read_engagement,business_management",
+  scopes:    "instagram_business_basic,pages_show_list,pages_read_engagement",
   // Callback path relative to APP_URL
   callbackPath: "/api/oauth/instagram/callback",
 } as const;
