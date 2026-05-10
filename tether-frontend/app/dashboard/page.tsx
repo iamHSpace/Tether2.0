@@ -268,6 +268,8 @@ export default function DashboardPage() {
   const [savingMetrics, setSavingMetrics]       = useState(false);
   const [metricsSaved, setMetricsSaved]         = useState(false);
   const [refreshing, setRefreshing]             = useState(false);
+  const [ytConnecting, setYtConnecting]         = useState(false);
+  const [ytConnectError, setYtConnectError]     = useState<string | null>(null);
   const [showAllVideos, setShowAllVideos]       = useState(false);
   const [videoSort, setVideoSort]               = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "views", dir: "desc" });
   const [profileViews, setProfileViews]         = useState<{ this_week: number; last_week: number } | null>(null);
@@ -368,6 +370,17 @@ export default function DashboardPage() {
       }
     }
     setRefreshing(false);
+  }
+
+  async function connectYouTube() {
+    setYtConnecting(true);
+    setYtConnectError(null);
+    try {
+      await api.youtube.connect(); // redirects on success; never reaches the line below
+    } catch (err) {
+      setYtConnectError(friendlyError(err));
+      setYtConnecting(false);
+    }
   }
 
   async function saveMetrics(vis: MetricVisibility) {
@@ -566,16 +579,20 @@ export default function DashboardPage() {
                       <p className="text-xs text-gray-400">{ytExpired ? "Session expired — reconnect to continue" : "Not connected"}</p>
                     </div>
                   </div>
-                  <button onClick={() => api.youtube.connect()}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white ${ytExpired ? "bg-amber-500 hover:bg-amber-600" : "bg-red-600 hover:bg-red-700"}`}>
-                    <IconYoutube size={12} className="text-white" /> {ytExpired ? "Reconnect" : "Connect"}
+                  <button
+                    onClick={connectYouTube}
+                    disabled={ytConnecting}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${ytExpired ? "bg-amber-500 hover:bg-amber-600" : "bg-red-600 hover:bg-red-700"}`}>
+                    <IconYoutube size={12} className={cn("text-white", ytConnecting && "animate-pulse")} />
+                    {ytConnecting ? "Redirecting…" : ytExpired ? "Reconnect" : "Connect"}
                   </button>
                 </div>
               )}
             </div>
           </section>
 
-          {ytError && <ErrorAlert message={ytError} onRetry={refreshMetrics} />}
+          {ytError        && <ErrorAlert message={ytError}        onRetry={refreshMetrics} />}
+          {ytConnectError && <ErrorAlert message={ytConnectError} onRetry={connectYouTube} />}
 
           {/* ── No YouTube state ───────────────────────────────────────────── */}
           {!loading && ytConnected === false && !ytData && !ytExpired && (
@@ -585,9 +602,12 @@ export default function DashboardPage() {
               </div>
               <h3 className="text-sm font-bold text-gray-900 mb-1">Connect YouTube to see analytics</h3>
               <p className="text-xs text-gray-400 mb-4 max-w-xs mx-auto">Link your channel to start showing verified metrics on your public profile.</p>
-              <button onClick={() => api.youtube.connect()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700">
-                <IconYoutube size={15} className="text-white" /> Connect YouTube
+              <button
+                onClick={connectYouTube}
+                disabled={ytConnecting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                <IconYoutube size={15} className={cn("text-white", ytConnecting && "animate-pulse")} />
+                {ytConnecting ? "Redirecting…" : "Connect YouTube"}
               </button>
             </div>
           )}
