@@ -89,18 +89,58 @@ function BarChart({ data, color = "#7c3aed", showValues = false }: {
   );
 }
 
+// ── Error helpers ──────────────────────────────────────────────────────────────
+
+/** Translate low-level fetch/network errors into readable sentences. */
+function friendlyError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (
+    msg === "Failed to fetch" ||
+    msg.includes("NetworkError") ||
+    msg.includes("network") ||
+    msg.includes("ERR_CONNECTION") ||
+    msg.includes("Load failed")           // Safari equivalent of "Failed to fetch"
+  ) {
+    return "Could not reach the server. Check your connection and try again.";
+  }
+  if (msg.includes("quota") || msg.includes("Quota")) {
+    return "YouTube API quota exceeded. Stats will refresh automatically tomorrow.";
+  }
+  return msg;
+}
+
 // ── Error alert ────────────────────────────────────────────────────────────────
 
 function ErrorAlert({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const isNetwork =
+    message.includes("Could not reach") ||
+    message.includes("connection");
   return (
-    <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-100">
-      <IconAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
+    <div className={cn(
+      "flex items-start gap-3 p-4 rounded-2xl border",
+      isNetwork
+        ? "bg-amber-50 border-amber-100"
+        : "bg-red-50 border-red-100"
+    )}>
+      <IconAlert size={16} className={cn("shrink-0 mt-0.5", isNetwork ? "text-amber-500" : "text-red-500")} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-red-700">Something went wrong</p>
-        <p className="text-xs text-red-500 mt-0.5 break-words">{message}</p>
+        <p className={cn("text-sm font-medium", isNetwork ? "text-amber-800" : "text-red-700")}>
+          {isNetwork ? "Connection problem" : "Something went wrong"}
+        </p>
+        <p className={cn("text-xs mt-0.5 break-words", isNetwork ? "text-amber-600" : "text-red-500")}>
+          {message}
+        </p>
       </div>
       {onRetry && (
-        <button onClick={onRetry} className="shrink-0 text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded-lg hover:bg-red-100">
+        <button
+          onClick={onRetry}
+          className={cn(
+            "shrink-0 text-xs font-medium px-2 py-1 rounded-lg",
+            isNetwork
+              ? "text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+              : "text-red-600 hover:text-red-800 hover:bg-red-100"
+          )}
+        >
           Retry
         </button>
       )}
@@ -285,11 +325,16 @@ export default function DashboardPage() {
         setYtConnected(false);
         setYtExpired(true);
         setYtError(null);
+      } else if (status === 0) {
+        // Network / server unreachable — don't claim connected, just show error banner
+        setYtConnected(null);
+        setYtExpired(false);
+        setYtError(friendlyError(err));
       } else {
-        // YouTube API error while connected — keep "connected" card, show error banner
+        // YouTube API error (quota, etc.) — server is up but YT call failed
         setYtConnected(true);
         setYtExpired(false);
-        setYtError(err instanceof Error ? err.message : String(err));
+        setYtError(friendlyError(err));
       }
     }
 
@@ -319,7 +364,7 @@ export default function DashboardPage() {
         setYtConnected(false);
         setYtExpired(true);
       } else if (status !== 404) {
-        setYtError(err instanceof Error ? err.message : String(err));
+        setYtError(friendlyError(err));
       }
     }
     setRefreshing(false);
@@ -533,7 +578,7 @@ export default function DashboardPage() {
           {ytError && <ErrorAlert message={ytError} onRetry={refreshMetrics} />}
 
           {/* ── No YouTube state ───────────────────────────────────────────── */}
-          {!loading && !ytConnected && !ytData && !ytExpired && (
+          {!loading && ytConnected === false && !ytData && !ytExpired && (
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
               <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
                 <IconYoutube size={24} className="text-red-400" />
