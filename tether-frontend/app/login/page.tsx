@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -40,38 +40,13 @@ export default function LoginPage() {
   const [gisReady, setGisReady]     = useState(false);
 
   const googleBtnRef = useRef<HTMLDivElement>(null);
-  const userTypeRef  = useRef<UserType>("creator");
-
-  // Keep ref in sync so the GIS callback always gets current userType
-  useEffect(() => { userTypeRef.current = userType; }, [userType]);
 
   const urlError =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("error")
       : null;
 
-  // ── GIS callback (called by Google after account selection) ──────────────────
-  const handleCredential = useCallback(async (response: { credential: string }) => {
-    setLoading(true);
-    setError(null);
-    localStorage.setItem("statvora_intended_user_type", userTypeRef.current);
-
-    const { data, error: authErr } = await supabase.auth.signInWithIdToken({
-      provider: "google",
-      token: response.credential,
-    });
-
-    if (authErr) {
-      setError(authErr.message);
-      setLoading(false);
-      return;
-    }
-
-    const type = (data.user?.user_metadata?.user_type as string | undefined) ?? userTypeRef.current;
-    window.location.href = type === "business" ? "/discover" : "/dashboard";
-  }, []);
-
-  // ── Load GIS script + render invisible Google button over our button ─────────
+  // ── Load GIS script + render button in redirect mode ─────────────────────────
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -85,11 +60,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (!gisReady || !googleBtnRef.current) return;
 
+    // Redirect mode: Google posts the credential to our /api/auth/google/callback
+    // endpoint (server-side, no popup), so Brave's popup blocker cannot interfere.
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredential,
+      ux_mode: "redirect",
+      login_uri: `${window.location.origin}/api/auth/google/callback`,
       auto_select: false,
-      cancel_on_tap_outside: true,
     });
 
     window.google.accounts.id.renderButton(googleBtnRef.current, {
@@ -99,7 +76,7 @@ export default function LoginPage() {
       width: googleBtnRef.current.parentElement?.offsetWidth ?? 400,
       logo_alignment: "center",
     });
-  }, [gisReady, handleCredential]);
+  }, [gisReady]);
 
   // ── Email / password login ───────────────────────────────────────────────────
   async function handleLogin(e: React.FormEvent) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -29,48 +29,23 @@ export default function SignupPage() {
   const [done, setDone]         = useState(false);
   const [gisReady, setGisReady] = useState(false);
 
-  const googleBtnRef  = useRef<HTMLDivElement>(null);
-  const userTypeRef   = useRef<UserType>("creator");
-  const companyRef    = useRef<string>("");
-
-  useEffect(() => { userTypeRef.current = userType; }, [userType]);
-  useEffect(() => { companyRef.current = company; }, [company]);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   function pickType(type: UserType) {
     setUserType(type);
     setStep("form");
   }
 
-  // ── GIS credential callback ──────────────────────────────────────────────────
-  const handleCredential = useCallback(async (response: { credential: string }) => {
-    setLoading(true);
-    setError(null);
-
-    const currentType = userTypeRef.current;
-    const currentCompany = companyRef.current;
-
-    const { data, error: authErr } = await supabase.auth.signInWithIdToken({
-      provider: "google",
-      token: response.credential,
-    });
-
-    if (authErr) { setError(authErr.message); setLoading(false); return; }
-
-    // Set user_type (and company if business) in metadata
-    const metadata: Record<string, string> = { user_type: currentType };
-    if (currentType === "business" && currentCompany.trim()) {
-      metadata.company_name = currentCompany.trim();
-    }
-    await supabase.auth.updateUser({ data: metadata });
-
-    // Check if new user (no profile yet) or returning user
-    const isNew = !data.user?.user_metadata?.user_type;
-    if (currentType === "creator" && isNew) {
-      window.location.href = "/onboarding";
+  // ── Keep localStorage in sync so the callback page knows the intended role ───
+  useEffect(() => {
+    if (step !== "form") return;
+    localStorage.setItem("_pending_user_type", userType);
+    if (userType === "business") {
+      localStorage.setItem("_pending_company", company);
     } else {
-      window.location.href = currentType === "business" ? "/discover" : "/dashboard";
+      localStorage.removeItem("_pending_company");
     }
-  }, []);
+  }, [step, userType, company]);
 
   // ── Load GIS ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -85,11 +60,13 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (!gisReady || !googleBtnRef.current) return;
+    // Redirect mode: full-page redirect through Google, credential POSTed to
+    // our server — no popup, works in all browsers including Brave.
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredential,
+      ux_mode: "redirect",
+      login_uri: `${window.location.origin}/api/auth/google/callback`,
       auto_select: false,
-      cancel_on_tap_outside: true,
     });
     window.google.accounts.id.renderButton(googleBtnRef.current, {
       type: "standard",
@@ -98,7 +75,7 @@ export default function SignupPage() {
       width: googleBtnRef.current.parentElement?.offsetWidth ?? 400,
       logo_alignment: "center",
     });
-  }, [gisReady, handleCredential]);
+  }, [gisReady]);
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
