@@ -76,7 +76,12 @@ export const instagram = {
   apiBase:   "https://graph.instagram.com/v21.0",
   fbApiBase: "https://graph.facebook.com/v21.0",
   // Scopes to request from the user
-  scopes:    "instagram_business_basic,pages_show_list,pages_read_engagement",
+  // Facebook Login OAuth only accepts Facebook-level permissions.
+  // instagram_business_basic is for Instagram Login (different flow) and is
+  // rejected here. pages_show_list + pages_read_engagement are sufficient to
+  // resolve the linked Instagram Business Account via /me/accounts → Page →
+  // instagram_business_account, then read media via the Page access token.
+  scopes:    "pages_show_list,pages_read_engagement",
   // Callback path relative to APP_URL
   callbackPath: "/api/oauth/instagram/callback",
 } as const;
