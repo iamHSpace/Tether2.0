@@ -151,6 +151,11 @@ export interface InstagramPost {
   timestamp:      string;
   like_count:     number;
   comments_count: number;
+  // Insights — present when instagram_business_manage_insights is authorised
+  reach?:        number;
+  impressions?:  number;
+  saved?:        number;
+  shares?:       number;
 }
 
 export interface InstagramStatsResponse {
@@ -227,6 +232,10 @@ export interface InstagramPostSnapshot {
   timestamp: string;
   like_count: number;
   comments_count: number;
+  reach?:        number;
+  impressions?:  number;
+  saved?:        number;
+  shares?:       number;
 }
 
 export interface InstagramSnapshotData {

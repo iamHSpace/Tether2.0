@@ -66,4 +66,10 @@ Pushes to `main` auto-deploy both apps via GitHub Actions.
 
 ## Documentation
 
-See **[CLAUDE.md](./CLAUDE.md)** for the full technical reference: role system, database schema, all API routes, auth flows, subscription system, cron jobs, and admin procedures.
+| Doc | What's inside |
+|---|---|
+| [CLAUDE.md](./CLAUDE.md) | Quick-reference for engineers: roles, routes, env vars, auth flows, local dev setup, admin procedures |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design, request flows, OAuth flows, rendering strategy, background jobs, performance decisions |
+| [docs/BUSINESS_MODEL.md](./docs/BUSINESS_MODEL.md) | Customer segments, pricing tiers, feature gates, Stripe setup, go-to-market notes |
+| [docs/DATABASE.md](./docs/DATABASE.md) | Full schema for all 15 tables, Postgres RPCs, indexes, migration history |
+| [docs/API.md](./docs/API.md) | All 47 API endpoints — auth, params, request/response shapes, error codes |

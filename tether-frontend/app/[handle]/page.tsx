@@ -374,6 +374,13 @@ function YouTubeSection({ ytPlatform, ytData, analytics, mv, hasAnyVisible }: {
 // ── InstagramSection ───────────────────────────────────────────────────────────
 
 function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
+  const postsWithInsights = igData.posts.filter(p => p.reach !== undefined);
+  const hasInsights = postsWithInsights.length > 0;
+  const avgReach       = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0) / postsWithInsights.length) : 0;
+  const avgImpressions = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0) / postsWithInsights.length) : 0;
+  const totalSaved     = hasInsights ? igData.posts.reduce((s, p) => s + (p.saved ?? 0), 0) : 0;
+  const totalShares    = hasInsights ? igData.posts.reduce((s, p) => s + (p.shares ?? 0), 0) : 0;
+
   return (
     <div className="space-y-4">
       {/* Platform header */}
@@ -393,11 +400,21 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
         </a>
       </div>
 
-      {/* Stats */}
+      {/* Core stats */}
       <div className="grid grid-cols-2 gap-3">
         <MetricCard icon={IconUsers} label="Followers" value={fmt(igData.account.followers_count)} bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
         <MetricCard icon={IconVideo} label="Total Posts" value={fmt(igData.account.media_count)} bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
       </div>
+
+      {/* Aggregate insight cards — visible only when insights are available */}
+      {hasInsights && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <InsightCard label="Avg Reach"       value={fmt(avgReach)}       sub="per post" />
+          <InsightCard label="Avg Impressions" value={fmt(avgImpressions)} sub="per post" />
+          <InsightCard label="Total Saves"     value={fmt(totalSaved)}     sub="across recent posts" />
+          <InsightCard label="Total Shares"    value={fmt(totalShares)}    sub="across recent posts" />
+        </div>
+      )}
 
       {/* Recent posts grid */}
       {igData.posts.length > 0 && (
@@ -414,9 +431,13 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
                         <IconInstagram size={18} className="text-pink-300" />
                       </div>
                   }
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-xs font-semibold">
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1 text-white text-[10px] font-semibold">
                     <span>♥ {fmt(post.like_count)}</span>
                     <span>💬 {fmt(post.comments_count)}</span>
+                    {post.reach       !== undefined && <span>👁 {fmt(post.reach)}</span>}
+                    {post.impressions !== undefined && <span>📊 {fmt(post.impressions)}</span>}
+                    {post.saved       !== undefined && <span>🔖 {fmt(post.saved)}</span>}
+                    {post.shares      !== undefined && <span>↗ {fmt(post.shares)}</span>}
                   </div>
                   {post.media_type === "VIDEO" && (
                     <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>

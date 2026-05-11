@@ -11,8 +11,8 @@
  *   - No Facebook Login product needed
  *
  * Set in .env.local:
- *   INSTAGRAM_CLIENT_ID=<facebook_app_id>
- *   INSTAGRAM_CLIENT_SECRET=<facebook_app_secret>
+ *   INSTAGRAM_CLIENT_ID=<instagram_app_id>       (from "API setup with Instagram login" page)
+ *   INSTAGRAM_CLIENT_SECRET=<instagram_app_secret>
  *   INSTAGRAM_REDIRECT_URI=<override — optional>
  *
  * OAuth flow:
@@ -182,10 +182,69 @@ export interface InstagramPost {
   timestamp:     string;
   like_count:    number;
   comments_count: number;
+  // Insights — populated when instagram_business_manage_insights scope is granted.
+  // Undefined when the scope hasn't been authorised yet or the post type doesn't
+  // support a particular metric (e.g. very old posts, Stories).
+  reach?:        number;
+  impressions?:  number;
+  saved?:        number;
+  shares?:       number;
+}
+
+// ── Per-post insights ─────────────────────────────────────────────────────────
+
+interface InsightMetric {
+  name:   string;
+  values: Array<{ value: number; end_time?: string }>;
 }
 
 /**
- * Fetches recent media from the authenticated user's Instagram account.
+ * Fetches lifetime insights for a single media object.
+ * Returns partial data — never throws; missing metrics are simply undefined.
+ *
+ * Requires: instagram_business_manage_insights scope.
+ * In dev mode (Meta app not yet App-Review approved) this works for
+ * accounts that are added as Testers in the Meta Developer Console.
+ */
+async function fetchPostInsights(
+  postId:      string,
+  accessToken: string,
+): Promise<Pick<InstagramPost, "reach" | "impressions" | "saved" | "shares">> {
+  try {
+    const metrics = "reach,impressions,saved,shares";
+    const res = await fetch(
+      `${cfg.apiBase}/${postId}/insights?metric=${metrics}&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return {};
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getValue = (name: string): number | undefined =>
+      data.data!.find(d => d.name === name)?.values?.[0]?.value;
+
+    return {
+      reach:       getValue("reach"),
+      impressions: getValue("impressions"),
+      saved:       getValue("saved"),
+      shares:      getValue("shares"),
+    };
+  } catch {
+    // Insight fetch should never break the main stats call
+    return {};
+  }
+}
+
+/**
+ * Fetches recent media from the authenticated user's Instagram account,
+ * then enriches each post with per-post insights (reach, impressions,
+ * saved, shares) fetched in parallel.
+ *
+ * Insight fetch failures are silenced — the post is still returned, just
+ * without insight fields.  This keeps the stats call robust against accounts
+ * that haven't yet granted instagram_business_manage_insights, or against
+ * post types that the insights endpoint doesn't support.
+ *
  * Uses GET /me/media — no separate user ID needed.
  */
 export async function getInstagramMedia(
@@ -203,5 +262,18 @@ export async function getInstagramMedia(
   if (!res.ok) {
     throw new Error(data.error?.message ?? "Failed to fetch Instagram media");
   }
-  return (data.data ?? []) as InstagramPost[];
+
+  const posts = (data.data ?? []) as InstagramPost[];
+  if (!posts.length) return posts;
+
+  // Fan out insights requests in parallel — one per post
+  const insightResults = await Promise.allSettled(
+    posts.map(p => fetchPostInsights(p.id, accessToken)),
+  );
+
+  return posts.map((post, i) => {
+    const insights =
+      insightResults[i].status === "fulfilled" ? insightResults[i].value : {};
+    return { ...post, ...insights };
+  });
 }

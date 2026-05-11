@@ -8,7 +8,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import {
   IconUsers, IconEye, IconVideo, IconTrendUp, IconYoutube, IconInstagram,
   IconRefresh, IconExternal, IconThumbUp, IconChat,
-  IconCopy, IconCheck, IconBell, IconAlert,
+  IconCopy, IconCheck, IconBell, IconAlert, IconBookmark, IconShare,
 } from "@/components/ui/Icons";
 
 // ── Toggle ─────────────────────────────────────────────────────────────────────
@@ -1049,36 +1049,59 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              {igData.recent_posts.length > 0 && (
-                <section>
-                  <SectionHeader title="Recent Posts" subtitle="Latest 9 posts from your Instagram account." />
-                  <div className="grid grid-cols-3 gap-2 max-w-lg">
-                    {igData.recent_posts.slice(0, 9).map(post => {
-                      const thumb = post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
-                      return (
-                        <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
-                          {thumb
-                            ? <img src={thumb} alt={post.caption ?? "Post"} className="w-full h-full object-cover" loading="lazy" />
-                            : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
-                                <IconInstagram size={20} className="text-pink-300" />
-                              </div>
-                          }
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-xs font-semibold">
-                            <span>♥ {fmt(post.like_count)}</span>
-                            <span>💬 {fmt(post.comments_count)}</span>
+              {igData.recent_posts.length > 0 && (() => {
+                const postsWithInsights = igData.recent_posts.filter(p => p.reach !== undefined);
+                const hasInsights = postsWithInsights.length > 0;
+                const avgReach       = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0) / postsWithInsights.length) : 0;
+                const avgImpressions = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0) / postsWithInsights.length) : 0;
+                const totalSaved     = hasInsights ? igData.recent_posts.reduce((s, p) => s + (p.saved ?? 0), 0) : 0;
+                const totalShares    = hasInsights ? igData.recent_posts.reduce((s, p) => s + (p.shares ?? 0), 0) : 0;
+                return (
+                  <section>
+                    <SectionHeader title="Recent Posts" subtitle="Latest 9 posts from your Instagram account." />
+
+                    {/* Aggregate insight cards — only shown when insights are available */}
+                    {hasInsights && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                        <StatCard label="Avg Reach"        value={fmt(avgReach)}       icon={IconEye}      bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+                        <StatCard label="Avg Impressions"  value={fmt(avgImpressions)} icon={IconTrendUp}  bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+                        <StatCard label="Total Saves"      value={fmt(totalSaved)}     icon={IconBookmark} bg="bg-[#fdf9ec]" iconColor="text-amber-500" />
+                        <StatCard label="Total Shares"     value={fmt(totalShares)}    icon={IconShare}    bg="bg-[#f0fdf4]" iconColor="text-emerald-600" />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2 max-w-lg">
+                      {igData.recent_posts.slice(0, 9).map(post => {
+                        const thumb = post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
+                        return (
+                          <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                            {thumb
+                              ? <img src={thumb} alt={post.caption ?? "Post"} className="w-full h-full object-cover" loading="lazy" />
+                              : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                                  <IconInstagram size={20} className="text-pink-300" />
+                                </div>
+                            }
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1 text-white text-[10px] font-semibold">
+                              <span>♥ {fmt(post.like_count)}</span>
+                              <span>💬 {fmt(post.comments_count)}</span>
+                              {post.reach       !== undefined && <span>👁 {fmt(post.reach)}</span>}
+                              {post.impressions !== undefined && <span>📊 {fmt(post.impressions)}</span>}
+                              {post.saved       !== undefined && <span>🔖 {fmt(post.saved)}</span>}
+                              {post.shares      !== undefined && <span>↗ {fmt(post.shares)}</span>}
+                            </div>
+                            {post.media_type === "VIDEO" && (
+                              <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
+                            )}
+                            {post.media_type === "CAROUSEL_ALBUM" && (
+                              <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⊞</div>
+                            )}
                           </div>
-                          {post.media_type === "VIDEO" && (
-                            <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
-                          )}
-                          {post.media_type === "CAROUSEL_ALBUM" && (
-                            <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⊞</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })()}
             </>
           )}
 

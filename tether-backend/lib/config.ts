@@ -75,14 +75,17 @@ export const instagram = {
   // Instagram account without needing a Facebook Page.
   // DO NOT use the Facebook Login dialog (facebook.com/…/dialog/oauth) here;
   // that flow requires a linked Facebook Page and rejects instagram_business_basic.
-  authUrl:   "https://api.instagram.com/oauth/authorize",
+  authUrl:   "https://www.instagram.com/oauth/authorize",
   tokenUrl:  "https://api.instagram.com/oauth/access_token",
   // Long-lived token exchange endpoint (no version in path)
   longTokenUrl: "https://graph.instagram.com/access_token",
   apiBase:   "https://graph.instagram.com/v21.0",
   // instagram_business_basic: grants read access to profile + media.
+  // instagram_business_manage_insights: grants access to media-level insights
+  //   (reach, impressions, saved, shares) via GET /{media-id}/insights.
+  //   Both are available to testers in dev mode without App Review.
   // Valid ONLY in the Instagram Login flow above.
-  scopes:    "instagram_business_basic",
+  scopes:    "instagram_business_basic,instagram_business_manage_insights",
   // Callback path relative to APP_URL
   callbackPath: "/api/oauth/instagram/callback",
 } as const;
