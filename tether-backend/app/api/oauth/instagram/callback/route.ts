@@ -12,13 +12,14 @@ import { platforms, FRONTEND_URL } from "@/lib/config";
 /**
  * GET /api/oauth/instagram/callback
  *
- * Facebook redirects here after the user grants (or denies) Instagram access.
+ * Instagram redirects here after the user grants (or denies) access.
+ * Uses the Instagram Login flow (api.instagram.com) — no Facebook Page needed.
  *
  * On success:
  *   1. Verify signed state → extract userId
- *   2. Exchange short-lived code for access token
- *   3. Upgrade to long-lived (60-day) token
- *   4. Resolve linked Instagram business account
+ *   2. Exchange short-lived code for access token (via api.instagram.com)
+ *   3. Upgrade to long-lived (~60-day) token (via graph.instagram.com)
+ *   4. Fetch profile via GET /me (no Facebook Pages lookup)
  *   5. Encrypt token and upsert into platform_tokens
  *   6. Redirect to frontend /dashboard?instagram_connected=true
  *
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
           access_token:      encryptedToken,
           refresh_token:     null,
           token_expiry:      tokenExpiry,
-          scope:             "pages_show_list,pages_read_engagement",
+          scope:             "instagram_business_basic",
           platform_user_id:  account.id,
           platform_username: account.name,
           metadata: {

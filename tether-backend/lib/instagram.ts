@@ -1,10 +1,14 @@
 /**
- * Instagram OAuth (via Facebook Graph API) helpers.
+ * Instagram OAuth helpers — Instagram Login flow.
  *
- * Instagram Graph API requires a Facebook App with:
- *   - instagram_basic
- *   - pages_read_engagement
- *   - business_management (for linked pages)
+ * Uses api.instagram.com/oauth/authorize (Instagram Login), NOT the Facebook
+ * Login dialog.  Works for any Professional Instagram account without needing
+ * a linked Facebook Page.
+ *
+ * Required app setup in Meta Developer Console:
+ *   - Add "Instagram" product → Instagram Login
+ *   - Add redirect URI under Instagram Login → OAuth Redirect URIs
+ *   - No Facebook Login product needed
  *
  * Set in .env.local:
  *   INSTAGRAM_CLIENT_ID=<facebook_app_id>
@@ -12,10 +16,10 @@
  *   INSTAGRAM_REDIRECT_URI=<override — optional>
  *
  * OAuth flow:
- *   1. getAuthUrl(state)            → send user to Facebook consent screen
- *   2. exchangeCodeForTokens(code)  → short-lived user access token
- *   3. getLongLivedToken(token)     → exchange for 60-day token
- *   4. getInstagramAccount(token)   → resolve linked Instagram business account
+ *   1. getAuthUrl(state)            → send user to Instagram consent screen
+ *   2. exchangeCodeForTokens(code)  → short-lived Instagram user access token (1 hr)
+ *   3. getLongLivedToken(token)     → exchange for long-lived token (~60 days)
+ *   4. getInstagramAccount(token)   → fetch profile via GET /me
  */
 
 import crypto from "crypto";
@@ -77,6 +81,10 @@ export interface TokenResponse {
   token_type:   string;
 }
 
+/**
+ * Exchange the authorization code for a short-lived Instagram user access
+ * token (valid ~1 hour).  Returns { access_token, token_type }.
+ */
 export async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI ?? routes.instagramCallback;
 
@@ -94,29 +102,42 @@ export async function exchangeCodeForTokens(code: string): Promise<TokenResponse
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error?.message ?? data.error_description ?? "Token exchange failed");
+    throw new Error(
+      data.error_message ??
+      data.error?.message ??
+      data.error_description ??
+      "Token exchange failed"
+    );
   }
   return data as TokenResponse;
 }
 
+/**
+ * Exchange a short-lived token for a long-lived one (~60 days).
+ * Uses the Instagram Graph API endpoint (no version segment).
+ */
 export async function getLongLivedToken(
   shortLivedToken: string
 ): Promise<{ access_token: string; expires_in: number }> {
-  const res = await fetch(
-    `${cfg.fbApiBase}/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.INSTAGRAM_CLIENT_ID!}&client_secret=${process.env.INSTAGRAM_CLIENT_SECRET!}&fb_exchange_token=${shortLivedToken}`,
-    { cache: "no-store" }
-  );
+  const url = new URL(cfg.longTokenUrl);
+  url.searchParams.set("grant_type",     "ig_exchange_token");
+  url.searchParams.set("client_secret",  process.env.INSTAGRAM_CLIENT_SECRET!);
+  url.searchParams.set("access_token",   shortLivedToken);
 
+  const res  = await fetch(url.toString(), { cache: "no-store" });
   const data = await res.json();
+
   if (!res.ok) {
     throw new Error(data.error?.message ?? "Long-lived token exchange failed");
   }
-  return data;
+  return data as { access_token: string; expires_in: number };
 }
 
+// ─── Account / Media ─────────────────────────────────────────────────────────
+
 export interface InstagramAccount {
-  id:       string;   // Instagram business account ID
-  name:     string;   // Display name
+  id:       string;   // Instagram user ID
+  name:     string;   // Display name (full_name)
   username: string;   // Instagram handle (without @)
   followers_count: number;
   media_count:     number;
@@ -124,54 +145,32 @@ export interface InstagramAccount {
 }
 
 /**
- * Resolves the user's linked Instagram business account from their Facebook token.
- * The user must have a professional/creator Instagram account linked to a Facebook Page.
+ * Fetches the authenticated user's Instagram profile via GET /me.
+ * No Facebook Pages required — works with any Professional Instagram account.
  */
 export async function getInstagramAccount(accessToken: string): Promise<InstagramAccount> {
-  // 1. Get Facebook Pages the user manages
-  const pagesRes = await fetch(
-    `${cfg.fbApiBase}/me/accounts?access_token=${accessToken}`,
+  const fields = "id,username,name,followers_count,media_count,profile_picture_url";
+  const res = await fetch(
+    `${cfg.apiBase}/me?fields=${fields}&access_token=${accessToken}`,
     { cache: "no-store" }
   );
-  const pagesData = await pagesRes.json();
-  if (!pagesRes.ok || !pagesData.data?.length) {
+  const data = await res.json();
+
+  if (!res.ok || !data.username) {
     throw new Error(
-      pagesData.error?.message ??
-      "No Facebook Pages found. Connect a professional Instagram account linked to a Facebook Page."
+      data.error?.message ??
+      "Failed to fetch Instagram account. Make sure the account is a Professional (Business/Creator) account."
     );
   }
 
-  // 2. For each page, check for a linked Instagram business account
-  for (const page of pagesData.data as { id: string; access_token: string }[]) {
-    const igRes = await fetch(
-      `${cfg.fbApiBase}/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`,
-      { cache: "no-store" }
-    );
-    const igData = await igRes.json();
-    const igId = igData.instagram_business_account?.id;
-    if (!igId) continue;
-
-    // 3. Fetch the Instagram account details
-    const detailRes = await fetch(
-      `${cfg.fbApiBase}/${igId}?fields=id,name,username,followers_count,media_count,profile_picture_url&access_token=${page.access_token}`,
-      { cache: "no-store" }
-    );
-    const detail = await detailRes.json();
-    if (detailRes.ok && detail.username) {
-      return {
-        id:                  detail.id,
-        name:                detail.name ?? detail.username,
-        username:            detail.username,
-        followers_count:     detail.followers_count ?? 0,
-        media_count:         detail.media_count ?? 0,
-        profile_picture_url: detail.profile_picture_url,
-      };
-    }
-  }
-
-  throw new Error(
-    "No Instagram business account found. Make sure your Instagram account is a Professional account and is linked to a Facebook Page."
-  );
+  return {
+    id:                  data.id,
+    name:                data.name ?? data.username,
+    username:            data.username,
+    followers_count:     data.followers_count ?? 0,
+    media_count:         data.media_count ?? 0,
+    profile_picture_url: data.profile_picture_url,
+  };
 }
 
 export interface InstagramPost {
@@ -186,20 +185,21 @@ export interface InstagramPost {
 }
 
 /**
- * Fetches recent media from an Instagram business account.
- * Requires instagram_basic permission on the access token.
+ * Fetches recent media from the authenticated user's Instagram account.
+ * Uses GET /me/media — no separate user ID needed.
  */
 export async function getInstagramMedia(
   accessToken: string,
-  igUserId: string,
+  _igUserId?: string,   // kept for API compatibility; /me/media is used instead
   limit = 9,
 ): Promise<InstagramPost[]> {
   const fields = "id,media_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count";
   const res = await fetch(
-    `${cfg.fbApiBase}/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`,
+    `${cfg.apiBase}/me/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`,
     { cache: "no-store" },
   );
   const data = await res.json();
+
   if (!res.ok) {
     throw new Error(data.error?.message ?? "Failed to fetch Instagram media");
   }

@@ -71,17 +71,18 @@ export const youtube = {
 // field on a Page object (finding the linked IG Business Account).
 
 export const instagram = {
-  authUrl:   "https://www.facebook.com/v21.0/dialog/oauth",
-  tokenUrl:  "https://graph.facebook.com/v21.0/oauth/access_token",
+  // Instagram Login flow (api.instagram.com) — works for any Professional
+  // Instagram account without needing a Facebook Page.
+  // DO NOT use the Facebook Login dialog (facebook.com/…/dialog/oauth) here;
+  // that flow requires a linked Facebook Page and rejects instagram_business_basic.
+  authUrl:   "https://api.instagram.com/oauth/authorize",
+  tokenUrl:  "https://api.instagram.com/oauth/access_token",
+  // Long-lived token exchange endpoint (no version in path)
+  longTokenUrl: "https://graph.instagram.com/access_token",
   apiBase:   "https://graph.instagram.com/v21.0",
-  fbApiBase: "https://graph.facebook.com/v21.0",
-  // Scopes to request from the user
-  // Facebook Login OAuth only accepts Facebook-level permissions.
-  // instagram_business_basic is for Instagram Login (different flow) and is
-  // rejected here. pages_show_list + pages_read_engagement are sufficient to
-  // resolve the linked Instagram Business Account via /me/accounts → Page →
-  // instagram_business_account, then read media via the Page access token.
-  scopes:    "pages_show_list,pages_read_engagement",
+  // instagram_business_basic: grants read access to profile + media.
+  // Valid ONLY in the Instagram Login flow above.
+  scopes:    "instagram_business_basic",
   // Callback path relative to APP_URL
   callbackPath: "/api/oauth/instagram/callback",
 } as const;
