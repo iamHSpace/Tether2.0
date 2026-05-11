@@ -1,14 +1,15 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { fmt, timeAgo } from "@/lib/utils";
-import { Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData } from "@/lib/api";
+import { Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData, InstagramSnapshotData } from "@/lib/api";
 import {
-  IconYoutube, IconExternal, IconShield,
+  IconYoutube, IconInstagram, IconExternal, IconShield,
   IconUsers, IconEye, IconVideo, IconTrendUp,
 } from "@/components/ui/Icons";
 import { ShareButton } from "./_components/ShareButton";
 import { VideoList } from "./_components/VideoList";
 import { TrackView } from "./_components/TrackView";
+import { PlatformTabs } from "./_components/PlatformTabs";
 
 export const revalidate = 300;
 
@@ -237,6 +238,202 @@ const stageLabels: Record<string, string> = {
   pro:           "Pro creator",
 };
 
+// ── YouTubeSection ─────────────────────────────────────────────────────────────
+
+function YouTubeSection({ ytPlatform, ytData, analytics, mv, hasAnyVisible }: {
+  ytPlatform: PlatformInfo;
+  ytData: SnapshotData;
+  analytics: ReturnType<typeof computeAnalytics>;
+  mv: MetricVisibility;
+  hasAnyVisible: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Platform header */}
+      <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-card flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center">
+            <IconYoutube size={17} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">{ytPlatform.platform_username}</p>
+            {ytData.channel.handle && <p className="text-xs text-gray-400">{ytData.channel.handle}</p>}
+          </div>
+        </div>
+        <a href={`https://youtube.com/channel/${ytPlatform.platform_user_id}`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+          <IconExternal size={11} /> View on YouTube
+        </a>
+      </div>
+
+      {/* Creator hid all metrics */}
+      {!hasAnyVisible && (
+        <div className="bg-white rounded-2xl p-6 border border-dashed border-gray-200 text-center">
+          <p className="text-sm text-gray-400">Creator has chosen not to share metrics publicly.</p>
+        </div>
+      )}
+
+      {/* Channel overview cards */}
+      {(mv.subscribers || mv.total_views || mv.video_count || mv.avg_views) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {mv.subscribers && (
+            <MetricCard icon={IconUsers} label="Subscribers" value={fmt(ytData.channel.subscribers)} bg="bg-[#e8f5f0]" iconColor="text-emerald-600" />
+          )}
+          {mv.total_views && (
+            <MetricCard icon={IconEye} label="Total Views" value={fmt(ytData.channel.totalViews)}
+              sub={analytics ? `${fmt(analytics.ghostViews)} from unlisted` : undefined} bg="bg-[#fef9ec]" iconColor="text-amber-500" />
+          )}
+          {mv.video_count && (
+            <MetricCard icon={IconVideo} label="Videos" value={fmt(ytData.channel.videoCount)} bg="bg-[#f0f0fe]" iconColor="text-brand-600" />
+          )}
+          {mv.avg_views && (
+            <MetricCard icon={IconTrendUp} label="Avg Views/Video"
+              value={fmt(Math.round(ytData.channel.totalViews / Math.max(ytData.channel.videoCount, 1)))} bg="bg-[#fdf0f3]" iconColor="text-rose-500" />
+          )}
+        </div>
+      )}
+
+      {/* Derived insights */}
+      {mv.avg_views && analytics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <InsightCard label="Sub-to-View Ratio" value={`${Math.round(analytics.subToViewRatio * 10) / 10}×`} sub="views per subscriber" />
+          <InsightCard label="Ghost Views" value={fmt(analytics.ghostViews)} sub="from unlisted/older videos" />
+          <InsightCard label="Upload Velocity" value={analytics.uploadVelocity > 0 ? `${Math.round(analytics.uploadVelocity * 10) / 10}d` : "—"} sub="avg days between uploads" />
+          <InsightCard label="Content Span"
+            value={analytics.accountAgeDays > 0 ? `${analytics.accountAgeDays}d` : "—"}
+            sub={`across ${ytData.videos.length} videos`} />
+        </div>
+      )}
+
+      {/* Charts */}
+      {mv.view_chart && analytics && ytData.videos.length >= 2 && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Views by Video</h3>
+              <p className="text-xs text-gray-400 mb-3">Oldest → newest ({ytData.videos.length} videos)</p>
+              <AreaChart
+                data={[...ytData.videos].sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()).map(v => v.views)}
+                color="#7c3aed" gradientId="pub-views" />
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Recency Decay</h3>
+              <p className="text-xs text-gray-400 mb-3">Views on last 6 uploads (newest first)</p>
+              <AreaChart data={analytics.recentDecay.map(d => d.value)} color="#f59e0b" gradientId="pub-decay" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-xs font-bold text-gray-900 mb-1">Publishing Momentum</h3>
+              <p className="text-[10px] text-gray-400 mb-3">Uploads per month</p>
+              <BarChart data={analytics.monthlyUploads} color="#7c3aed" />
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-xs font-bold text-gray-900 mb-1">Best Day to Post</h3>
+              <p className="text-[10px] text-gray-400 mb-3">Avg views by weekday</p>
+              <BarChart data={analytics.weekdayBuckets} color="#10b981" />
+            </div>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-xs font-bold text-gray-900 mb-1">Title Length vs Engagement</h3>
+              <p className="text-[10px] text-gray-400 mb-3">Avg engagement by title length</p>
+              <BarChart data={analytics.titleBuckets} color="#f59e0b" />
+            </div>
+          </div>
+          {mv.video_count && analytics.series.length > 0 && (
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+              <h3 className="text-sm font-bold text-gray-900 mb-3">Content Series</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {analytics.series.map(s => {
+                  const avgViews = Math.round(s.videos.reduce((sum, v) => sum + v.views, 0) / s.videos.length);
+                  const avgEng = Math.round(s.videos.reduce((sum, v) => sum + v.likes * 2 + v.comments, 0) / s.videos.length);
+                  return (
+                    <div key={s.name} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <p className="text-xs font-bold text-gray-800 truncate">{s.name}…</p>
+                      <p className="text-[10px] text-gray-400 mb-2">{s.videos.length} videos</p>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex justify-between"><span className="text-gray-400">Avg views</span><span className="font-semibold">{fmt(avgViews)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Avg engagement</span><span className="font-semibold">{fmt(avgEng)}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Post activity */}
+      {mv.recent_videos && analytics && (
+        <VideoList videos={analytics.withMetrics} totalCount={ytData.videos.length} />
+      )}
+    </div>
+  );
+}
+
+// ── InstagramSection ───────────────────────────────────────────────────────────
+
+function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
+  return (
+    <div className="space-y-4">
+      {/* Platform header */}
+      <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-card flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+            <IconInstagram size={17} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">@{igData.account.username}</p>
+            <p className="text-xs text-gray-400">{igData.account.name}</p>
+          </div>
+        </div>
+        <a href={`https://instagram.com/${igData.account.username}`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+          <IconExternal size={11} /> View on Instagram
+        </a>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <MetricCard icon={IconUsers} label="Followers" value={fmt(igData.account.followers_count)} bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+        <MetricCard icon={IconVideo} label="Total Posts" value={fmt(igData.account.media_count)} bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+      </div>
+
+      {/* Recent posts grid */}
+      {igData.posts.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Recent Posts</p>
+          <div className="grid grid-cols-3 gap-2">
+            {igData.posts.slice(0, 9).map(post => {
+              const thumb = post.media_type === "VIDEO" ? post.thumbnail_url : post.media_url;
+              return (
+                <div key={post.id} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                  {thumb
+                    ? <img src={thumb} alt={post.caption ?? "Post"} className="w-full h-full object-cover" loading="lazy" />
+                    : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                        <IconInstagram size={18} className="text-pink-300" />
+                      </div>
+                  }
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-xs font-semibold">
+                    <span>♥ {fmt(post.like_count)}</span>
+                    <span>💬 {fmt(post.comments_count)}</span>
+                  </div>
+                  {post.media_type === "VIDEO" && (
+                    <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
+                  )}
+                  {post.media_type === "CAROUSEL_ALBUM" && (
+                    <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⊞</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default async function CreatorPublicProfile(
@@ -264,12 +461,21 @@ export default async function CreatorPublicProfile(
 
   const mv: MetricVisibility = (profile.metric_visibility as MetricVisibility) ?? DEFAULT_METRIC_VISIBILITY;
   const ytPlatform = platforms.find(p => p.platform === "youtube") ?? null;
+  const igPlatform = platforms.find(p => p.platform === "instagram") ?? null;
   const ytSnap = snapshots["youtube"];
-  const ytData: SnapshotData | null = ytSnap?.data ?? null;
-  const capturedAt = ytSnap?.captured_at ?? null;
+  const igSnap = snapshots["instagram"];
+  const ytData: SnapshotData | null = ytSnap?.data as unknown as SnapshotData ?? null;
+  const igData: InstagramSnapshotData | null = igSnap?.data as unknown as InstagramSnapshotData ?? null;
+  const capturedAt = ytSnap?.captured_at ?? igSnap?.captured_at ?? null;
   const analytics = ytData ? computeAnalytics(ytData) : null;
   const hasAnyVisible = mv.subscribers || mv.total_views || mv.video_count || mv.avg_views || mv.view_chart || mv.recent_videos;
   const initials = (profile.full_name?.[0] ?? profile.username?.[0] ?? "?").toUpperCase();
+
+  // Determine which platforms have data for tab display
+  const activePlatforms: { id: "youtube" | "instagram"; subtitle?: string }[] = [];
+  if (ytPlatform && ytData) activePlatforms.push({ id: "youtube", subtitle: ytData.channel.subscribers ? `${fmt(ytData.channel.subscribers)} subs` : undefined });
+  if (igPlatform && igData) activePlatforms.push({ id: "instagram", subtitle: igData.account.followers_count ? `${fmt(igData.account.followers_count)} followers` : undefined });
+  const useTabLayout = activePlatforms.length > 1;
 
   return (
     <div className="min-h-screen bg-[#f5f0e8]">
@@ -320,6 +526,11 @@ export default async function CreatorPublicProfile(
                     <IconYoutube size={10} /> YouTube
                   </span>
                 )}
+                {igPlatform && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-600 border border-pink-100">
+                    <IconInstagram size={10} /> Instagram
+                  </span>
+                )}
               </div>
             </div>
             <a href="/login" className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors">
@@ -343,7 +554,7 @@ export default async function CreatorPublicProfile(
         </div>
 
         {/* No platforms connected */}
-        {!ytPlatform && (
+        {!ytPlatform && !igPlatform && (
           <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-200 text-center">
             <p className="text-sm font-medium text-gray-500 mb-1">No platforms connected yet</p>
             <p className="text-xs text-gray-400">This creator hasn&apos;t linked any platform accounts.</p>
@@ -351,7 +562,7 @@ export default async function CreatorPublicProfile(
         )}
 
         {/* YouTube: connected but no snapshot */}
-        {ytPlatform && !ytData && (
+        {ytPlatform && !ytData && !igData && (
           <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-200 text-center space-y-2">
             <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto">
               <IconYoutube size={18} className="text-red-400" />
@@ -361,131 +572,41 @@ export default async function CreatorPublicProfile(
           </div>
         )}
 
-        {/* YouTube section */}
-        {ytPlatform && ytData && (
-          <div className="space-y-4">
-            {/* Platform header */}
-            <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-card flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center">
-                  <IconYoutube size={17} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">{ytPlatform.platform_username}</p>
-                  {ytData.channel.handle && <p className="text-xs text-gray-400">{ytData.channel.handle}</p>}
-                </div>
-              </div>
-              <a href={`https://youtube.com/channel/${ytPlatform.platform_user_id}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
-                <IconExternal size={11} /> View on YouTube
-              </a>
-            </div>
-
-            {/* Creator hid all metrics */}
-            {!hasAnyVisible && (
-              <div className="bg-white rounded-2xl p-6 border border-dashed border-gray-200 text-center">
-                <p className="text-sm text-gray-400">Creator has chosen not to share metrics publicly.</p>
-              </div>
+        {/* ── Platform content (tabs when multiple platforms, inline otherwise) */}
+        {useTabLayout ? (
+          <PlatformTabs
+            tabs={activePlatforms}
+            youtube={ytPlatform && ytData ? (
+              <YouTubeSection
+                ytPlatform={ytPlatform}
+                ytData={ytData}
+                analytics={analytics}
+                mv={mv}
+                hasAnyVisible={hasAnyVisible}
+              />
+            ) : undefined}
+            instagram={igPlatform && igData ? (
+              <InstagramSection igData={igData} />
+            ) : undefined}
+          />
+        ) : (
+          <>
+            {/* Single platform — show inline without tab wrapper */}
+            {ytPlatform && ytData && (
+              <YouTubeSection
+                ytPlatform={ytPlatform}
+                ytData={ytData}
+                analytics={analytics}
+                mv={mv}
+                hasAnyVisible={hasAnyVisible}
+              />
             )}
-
-            {/* Channel overview cards */}
-            {(mv.subscribers || mv.total_views || mv.video_count || mv.avg_views) && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {mv.subscribers && (
-                  <MetricCard icon={IconUsers} label="Subscribers" value={fmt(ytData.channel.subscribers)} bg="bg-[#e8f5f0]" iconColor="text-emerald-600" />
-                )}
-                {mv.total_views && (
-                  <MetricCard icon={IconEye} label="Total Views" value={fmt(ytData.channel.totalViews)}
-                    sub={analytics ? `${fmt(analytics.ghostViews)} from unlisted` : undefined} bg="bg-[#fef9ec]" iconColor="text-amber-500" />
-                )}
-                {mv.video_count && (
-                  <MetricCard icon={IconVideo} label="Videos" value={fmt(ytData.channel.videoCount)} bg="bg-[#f0f0fe]" iconColor="text-brand-600" />
-                )}
-                {mv.avg_views && (
-                  <MetricCard icon={IconTrendUp} label="Avg Views/Video"
-                    value={fmt(Math.round(ytData.channel.totalViews / Math.max(ytData.channel.videoCount, 1)))} bg="bg-[#fdf0f3]" iconColor="text-rose-500" />
-                )}
-              </div>
+            {igPlatform && igData && (
+              <InstagramSection igData={igData} />
             )}
-
-            {/* Derived insights */}
-            {mv.avg_views && analytics && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <InsightCard label="Sub-to-View Ratio" value={`${Math.round(analytics.subToViewRatio * 10) / 10}×`} sub="views per subscriber" />
-                <InsightCard label="Ghost Views" value={fmt(analytics.ghostViews)} sub="from unlisted/older videos" />
-                <InsightCard label="Upload Velocity" value={analytics.uploadVelocity > 0 ? `${Math.round(analytics.uploadVelocity * 10) / 10}d` : "—"} sub="avg days between uploads" />
-                <InsightCard label="Content Span"
-                  value={analytics.accountAgeDays > 0 ? `${analytics.accountAgeDays}d` : "—"}
-                  sub={`across ${ytData.videos.length} videos`} />
-              </div>
-            )}
-
-            {/* Charts */}
-            {mv.view_chart && analytics && ytData.videos.length >= 2 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-sm font-bold text-gray-900 mb-1">Views by Video</h3>
-                    <p className="text-xs text-gray-400 mb-3">Oldest → newest ({ytData.videos.length} videos)</p>
-                    <AreaChart
-                      data={[...ytData.videos].sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()).map(v => v.views)}
-                      color="#7c3aed" gradientId="pub-views" />
-                  </div>
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-sm font-bold text-gray-900 mb-1">Recency Decay</h3>
-                    <p className="text-xs text-gray-400 mb-3">Views on last 6 uploads (newest first)</p>
-                    <AreaChart data={analytics.recentDecay.map(d => d.value)} color="#f59e0b" gradientId="pub-decay" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-xs font-bold text-gray-900 mb-1">Publishing Momentum</h3>
-                    <p className="text-[10px] text-gray-400 mb-3">Uploads per month</p>
-                    <BarChart data={analytics.monthlyUploads} color="#7c3aed" />
-                  </div>
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-xs font-bold text-gray-900 mb-1">Best Day to Post</h3>
-                    <p className="text-[10px] text-gray-400 mb-3">Avg views by weekday</p>
-                    <BarChart data={analytics.weekdayBuckets} color="#10b981" />
-                  </div>
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-xs font-bold text-gray-900 mb-1">Title Length vs Engagement</h3>
-                    <p className="text-[10px] text-gray-400 mb-3">Avg engagement by title length</p>
-                    <BarChart data={analytics.titleBuckets} color="#f59e0b" />
-                  </div>
-                </div>
-
-                {mv.video_count && analytics.series.length > 0 && (
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
-                    <h3 className="text-sm font-bold text-gray-900 mb-3">Content Series</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {analytics.series.map(s => {
-                        const avgViews = Math.round(s.videos.reduce((sum, v) => sum + v.views, 0) / s.videos.length);
-                        const avgEng = Math.round(s.videos.reduce((sum, v) => sum + v.likes * 2 + v.comments, 0) / s.videos.length);
-                        return (
-                          <div key={s.name} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                            <p className="text-xs font-bold text-gray-800 truncate">{s.name}…</p>
-                            <p className="text-[10px] text-gray-400 mb-2">{s.videos.length} videos</p>
-                            <div className="space-y-0.5 text-xs">
-                              <div className="flex justify-between"><span className="text-gray-400">Avg views</span><span className="font-semibold">{fmt(avgViews)}</span></div>
-                              <div className="flex justify-between"><span className="text-gray-400">Avg engagement</span><span className="font-semibold">{fmt(avgEng)}</span></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Post activity */}
-            {mv.recent_videos && analytics && (
-              <VideoList videos={analytics.withMetrics} totalCount={ytData.videos.length} />
-            )}
-          </div>
+          </>
         )}
+
 
         {/* About */}
         {(profile.creator_stage || profile.aspiration || profile.website) && (

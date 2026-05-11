@@ -218,10 +218,33 @@ export interface SnapshotData {
   videos: VideoSummary[];
 }
 
+export interface InstagramPostSnapshot {
+  id: string;
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url: string;
+  thumbnail_url?: string;
+  caption?: string;
+  timestamp: string;
+  like_count: number;
+  comments_count: number;
+}
+
+export interface InstagramSnapshotData {
+  account: {
+    id: string;
+    username: string;
+    name: string;
+    followers_count: number;
+    media_count: number;
+    profile_picture_url?: string;
+  };
+  posts: InstagramPostSnapshot[];
+}
+
 export interface CreatorResponse {
   profile: Profile;
   platforms: PlatformInfo[];
-  snapshots: Record<string, { data: SnapshotData; captured_at: string }>;
+  snapshots: Record<string, { data: SnapshotData | InstagramSnapshotData | unknown; captured_at: string }>;
 }
 
 export interface SavedCreator {

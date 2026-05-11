@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { api, SavedCreator, CreatorResponse } from "@/lib/api";
+import { api, SavedCreator, CreatorResponse, SnapshotData } from "@/lib/api";
 import { fmt, timeAgo } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
@@ -16,7 +16,7 @@ function Skeleton({ className = "" }: { className?: string }) {
 
 interface EnrichedCreator extends SavedCreator {
   profile?: CreatorResponse["profile"];
-  ytChannel?: CreatorResponse["snapshots"]["youtube"]["data"]["channel"];
+  ytChannel?: SnapshotData["channel"];
   ytPlatform?: CreatorResponse["platforms"][0];
   loading: boolean;
   error?: string;
@@ -57,7 +57,7 @@ export default function SavedPage() {
         return {
           ...s,
           profile: data.profile,
-          ytChannel: ytSnap?.data?.channel,
+          ytChannel: (ytSnap?.data as unknown as SnapshotData)?.channel,
           ytPlatform: data.platforms.find(p => p.platform === "youtube"),
           loading: false,
         };
