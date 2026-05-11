@@ -151,11 +151,28 @@ export interface InstagramPost {
   timestamp:      string;
   like_count:     number;
   comments_count: number;
-  // Insights — present when instagram_business_manage_insights is authorised
-  reach?:        number;
-  impressions?:  number;
-  saved?:        number;
-  shares?:       number;
+  // Per-post insights — present when instagram_business_manage_insights is authorised
+  reach?:               number;
+  impressions?:         number;
+  saved?:               number;
+  shares?:              number;
+  video_views?:         number;   // VIDEO only
+  follows?:             number;
+  profile_visits?:      number;
+  total_interactions?:  number;
+}
+
+export interface InstagramAccountInsights {
+  // Last 7 days
+  website_clicks?:      number;
+  profile_views?:       number;
+  account_reach?:       number;
+  account_impressions?: number;
+  // Audience demographics (lifetime snapshots)
+  audience_gender_age?: Record<string, number>;  // "M.25-34" → 0.38 (fraction)
+  audience_country?:    Record<string, number>;  // "IN" → 0.65 (fraction)
+  audience_city?:       Record<string, number>;  // "Mumbai" → 0.12 (fraction)
+  online_followers?:    Record<string, number>;  // "0"–"23" → follower count (absolute)
 }
 
 export interface InstagramStatsResponse {
@@ -165,6 +182,7 @@ export interface InstagramStatsResponse {
   followers_count:     number;
   media_count:         number;
   recent_posts:        InstagramPost[];
+  account_insights:    InstagramAccountInsights;
   token_expires_at:    string | null;
   connected_at:        string;
 }
@@ -232,10 +250,14 @@ export interface InstagramPostSnapshot {
   timestamp: string;
   like_count: number;
   comments_count: number;
-  reach?:        number;
-  impressions?:  number;
-  saved?:        number;
-  shares?:       number;
+  reach?:               number;
+  impressions?:         number;
+  saved?:               number;
+  shares?:              number;
+  video_views?:         number;
+  follows?:             number;
+  profile_visits?:      number;
+  total_interactions?:  number;
 }
 
 export interface InstagramSnapshotData {
@@ -248,6 +270,7 @@ export interface InstagramSnapshotData {
     profile_picture_url?: string;
   };
   posts: InstagramPostSnapshot[];
+  account_insights?: InstagramAccountInsights;
 }
 
 export interface CreatorResponse {

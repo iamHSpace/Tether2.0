@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { api, ApiError, YouTubeStatsResponse, InstagramStatsResponse, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
+import { api, ApiError, YouTubeStatsResponse, InstagramStatsResponse, InstagramAccountInsights, MetricVisibility, DEFAULT_METRIC_VISIBILITY } from "@/lib/api";
 import { fmt, timeAgo, cn } from "@/lib/utils";
 import Sidebar from "@/components/layout/Sidebar";
 import {
@@ -1030,43 +1030,182 @@ export default function DashboardPage() {
           {/* ── Instagram Stats ───────────────────────────────────────────── */}
           {activeTab === "instagram" && igData && (
             <>
+              {/* Overview */}
               <section>
                 <SectionHeader title="Instagram Overview" subtitle="Stats pulled directly from Instagram Graph API." />
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <StatCard label="Followers"  value={fmt(igData.followers_count)} icon={IconUsers}    bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
-                  <StatCard label="Total Posts" value={fmt(igData.media_count)}    icon={IconVideo}    bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
-                  {igData.token_expires_at && (
-                    (() => {
-                      const daysLeft = Math.ceil((new Date(igData.token_expires_at).getTime() - Date.now()) / 86400000);
-                      return daysLeft <= 7 ? (
-                        <div className="col-span-2 sm:col-span-1 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-xs">
-                          <IconAlert size={14} className="shrink-0" />
-                          Token expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""} — reconnect soon
-                        </div>
-                      ) : null;
-                    })()
-                  )}
+                  <StatCard label="Followers"   value={fmt(igData.followers_count)} icon={IconUsers} bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+                  <StatCard label="Total Posts" value={fmt(igData.media_count)}     icon={IconVideo} bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+                  {igData.token_expires_at && (() => {
+                    const daysLeft = Math.ceil((new Date(igData.token_expires_at).getTime() - Date.now()) / 86400000);
+                    return daysLeft <= 7 ? (
+                      <div className="col-span-2 sm:col-span-1 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-xs">
+                        <IconAlert size={14} className="shrink-0" />
+                        Token expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""} — reconnect soon
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               </section>
 
-              {igData.recent_posts.length > 0 && (() => {
-                const postsWithInsights = igData.recent_posts.filter(p => p.reach !== undefined);
-                const hasInsights = postsWithInsights.length > 0;
-                const avgReach       = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0) / postsWithInsights.length) : 0;
-                const avgImpressions = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0) / postsWithInsights.length) : 0;
-                const totalSaved     = hasInsights ? igData.recent_posts.reduce((s, p) => s + (p.saved ?? 0), 0) : 0;
-                const totalShares    = hasInsights ? igData.recent_posts.reduce((s, p) => s + (p.shares ?? 0), 0) : 0;
+              {/* Account-level insights — last 7 days */}
+              {(() => {
+                const ai = igData.account_insights;
+                const hasAccountInsights = ai && (
+                  ai.account_reach !== undefined || ai.profile_views !== undefined ||
+                  ai.website_clicks !== undefined || ai.account_impressions !== undefined
+                );
+                if (!hasAccountInsights) return null;
                 return (
                   <section>
-                    <SectionHeader title="Recent Posts" subtitle="Latest 9 posts from your Instagram account." />
+                    <SectionHeader title="Last 7 Days" subtitle="Account-level activity pulled from Instagram Insights." />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {ai!.account_reach       !== undefined && <StatCard label="Account Reach"   value={fmt(ai!.account_reach!)}       icon={IconEye}      bg="bg-[#fdf0f6]" iconColor="text-pink-500" />}
+                      {ai!.account_impressions !== undefined && <StatCard label="Impressions"     value={fmt(ai!.account_impressions!)} icon={IconTrendUp}  bg="bg-[#f5f0fe]" iconColor="text-purple-500" />}
+                      {ai!.profile_views       !== undefined && <StatCard label="Profile Visits"  value={fmt(ai!.profile_views!)}       icon={IconUsers}    bg="bg-[#f0fdf4]" iconColor="text-emerald-600" />}
+                      {ai!.website_clicks      !== undefined && <StatCard label="Website Clicks"  value={fmt(ai!.website_clicks!)}      icon={IconExternal} bg="bg-[#fdf9ec]" iconColor="text-amber-500" />}
+                    </div>
+                  </section>
+                );
+              })()}
 
-                    {/* Aggregate insight cards — only shown when insights are available */}
-                    {hasInsights && (
+              {/* Audience demographics */}
+              {(() => {
+                const ai = igData.account_insights;
+                if (!ai) return null;
+                const hasGenderAge = !!ai.audience_gender_age && Object.keys(ai.audience_gender_age).length > 0;
+                const hasCountry   = !!ai.audience_country    && Object.keys(ai.audience_country).length > 0;
+                const hasOnline    = !!ai.online_followers     && Object.keys(ai.online_followers).length > 0;
+                if (!hasGenderAge && !hasCountry && !hasOnline) return null;
+
+                // Parse helpers inline
+                const gaParsed = hasGenderAge ? (() => {
+                  let male = 0; let female = 0;
+                  const brackets: { label: string; pct: number }[] = [];
+                  for (const [key, val] of Object.entries(ai.audience_gender_age!)) {
+                    const pct = val <= 1 ? Math.round(val * 100) : Math.round(val);
+                    if (key.startsWith("M.")) male += pct; else if (key.startsWith("F.")) female += pct;
+                    brackets.push({ label: key.replace("M.", "M ").replace("F.", "F "), pct });
+                  }
+                  brackets.sort((a, b) => b.pct - a.pct);
+                  return { male, female, brackets: brackets.slice(0, 6) };
+                })() : null;
+
+                const countries = hasCountry
+                  ? Object.entries(ai.audience_country!)
+                      .map(([code, val]) => ({ code, pct: val <= 1 ? Math.round(val * 100) : Math.round(val) }))
+                      .sort((a, b) => b.pct - a.pct).slice(0, 5)
+                  : null;
+
+                const hours = hasOnline ? (() => {
+                  const raw = ai.online_followers!;
+                  const maxV = Math.max(...Object.values(raw), 1);
+                  return Array.from({ length: 24 }, (_, h) => ({
+                    hour: h,
+                    label: h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`,
+                    count: raw[String(h)] ?? 0,
+                    pct: Math.round(((raw[String(h)] ?? 0) / maxV) * 100),
+                  }));
+                })() : null;
+                const peakHour = hours ? hours.reduce((b, h) => h.count > b.count ? h : b, hours[0]) : null;
+
+                return (
+                  <section>
+                    <SectionHeader title="Audience Insights" subtitle="Demographic breakdown of your followers." />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Gender / Age */}
+                      {gaParsed && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card space-y-3">
+                          <p className="text-xs font-bold text-gray-700">Gender Split</p>
+                          <div className="flex rounded-full overflow-hidden h-3">
+                            <div className="bg-blue-400" style={{ width: `${gaParsed.male}%` }} />
+                            <div className="bg-pink-400 flex-1" />
+                          </div>
+                          <div className="flex gap-4 text-[11px] text-gray-500">
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />Male {gaParsed.male}%</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />Female {gaParsed.female}%</span>
+                          </div>
+                          <div className="space-y-1.5 pt-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Top Age Brackets</p>
+                            {gaParsed.brackets.map(b => (
+                              <div key={b.label} className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-500 w-14 shrink-0">{b.label}</span>
+                                <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-pink-400" style={{ width: `${Math.min(b.pct * 2, 100)}%` }} />
+                                </div>
+                                <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{b.pct}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Top Countries */}
+                      {countries && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card space-y-2">
+                          <p className="text-xs font-bold text-gray-700">Top Countries</p>
+                          {countries.map(c => (
+                            <div key={c.code} className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-500 w-7 shrink-0 font-mono">{c.code}</span>
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-400" style={{ width: `${Math.min(c.pct * 1.5, 100)}%` }} />
+                              </div>
+                              <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{c.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Best time to post */}
+                    {hours && peakHour && (
+                      <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card mt-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-bold text-gray-700">Best Time to Post</p>
+                          <span className="text-[10px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-full">
+                            Peak: {peakHour.label} UTC · {fmt(peakHour.count)} online
+                          </span>
+                        </div>
+                        <div className="flex items-end gap-0.5 h-10">
+                          {hours.map(h => (
+                            <div key={h.hour} className="flex-1 flex flex-col items-center" title={`${h.label}: ${fmt(h.count)}`}>
+                              <div className={`w-full rounded-sm ${h.hour === peakHour.hour ? "bg-purple-500" : "bg-purple-200"}`}
+                                style={{ height: `${Math.max(h.pct, 4)}%` }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+                          <span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
+
+              {/* Recent posts + per-post insights */}
+              {igData.recent_posts.length > 0 && (() => {
+                const postsWithInsights    = igData.recent_posts.filter(p => p.reach !== undefined);
+                const hasPostInsights      = postsWithInsights.length > 0;
+                const avgReach             = hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0)              / postsWithInsights.length) : 0;
+                const avgImpressions       = hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0)        / postsWithInsights.length) : 0;
+                const avgTotalInteractions = hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.total_interactions ?? 0), 0) / postsWithInsights.length) : 0;
+                const totalSaved           = hasPostInsights ? igData.recent_posts.reduce((s, p) => s + (p.saved ?? 0), 0)          : 0;
+                const totalShares          = hasPostInsights ? igData.recent_posts.reduce((s, p) => s + (p.shares ?? 0), 0)         : 0;
+                const totalFollows         = hasPostInsights ? igData.recent_posts.reduce((s, p) => s + (p.follows ?? 0), 0)        : 0;
+                const totalProfileVisits   = hasPostInsights ? igData.recent_posts.reduce((s, p) => s + (p.profile_visits ?? 0), 0) : 0;
+
+                return (
+                  <section>
+                    <SectionHeader title="Recent Posts" subtitle="Latest 9 posts with per-post insights." />
+
+                    {hasPostInsights && (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                        <StatCard label="Avg Reach"        value={fmt(avgReach)}       icon={IconEye}      bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
-                        <StatCard label="Avg Impressions"  value={fmt(avgImpressions)} icon={IconTrendUp}  bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
-                        <StatCard label="Total Saves"      value={fmt(totalSaved)}     icon={IconBookmark} bg="bg-[#fdf9ec]" iconColor="text-amber-500" />
-                        <StatCard label="Total Shares"     value={fmt(totalShares)}    icon={IconShare}    bg="bg-[#f0fdf4]" iconColor="text-emerald-600" />
+                        <StatCard label="Avg Reach"        value={fmt(avgReach)}             icon={IconEye}      bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+                        <StatCard label="Avg Impressions"  value={fmt(avgImpressions)}       icon={IconTrendUp}  bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+                        <StatCard label="Avg Interactions" value={fmt(avgTotalInteractions)} icon={IconThumbUp}  bg="bg-[#fdf9ec]" iconColor="text-amber-500" />
+                        <StatCard label="Total Saves"      value={fmt(totalSaved)}           icon={IconBookmark} bg="bg-[#f0fdf4]" iconColor="text-emerald-600" />
+                        <StatCard label="Total Shares"     value={fmt(totalShares)}          icon={IconShare}    bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+                        {totalFollows       > 0 && <StatCard label="New Follows"    value={fmt(totalFollows)}       icon={IconUsers}    bg="bg-[#fdf0f6]" iconColor="text-pink-500" />}
+                        {totalProfileVisits > 0 && <StatCard label="Profile Visits" value={fmt(totalProfileVisits)} icon={IconExternal} bg="bg-[#fdf9ec]" iconColor="text-amber-500" />}
                       </div>
                     )}
 
@@ -1081,13 +1220,17 @@ export default function DashboardPage() {
                                   <IconInstagram size={20} className="text-pink-300" />
                                 </div>
                             }
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1 text-white text-[10px] font-semibold">
+                            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1.5 text-white text-[10px] font-semibold">
                               <span>♥ {fmt(post.like_count)}</span>
                               <span>💬 {fmt(post.comments_count)}</span>
-                              {post.reach       !== undefined && <span>👁 {fmt(post.reach)}</span>}
-                              {post.impressions !== undefined && <span>📊 {fmt(post.impressions)}</span>}
-                              {post.saved       !== undefined && <span>🔖 {fmt(post.saved)}</span>}
-                              {post.shares      !== undefined && <span>↗ {fmt(post.shares)}</span>}
+                              {post.total_interactions !== undefined && <span>⚡ {fmt(post.total_interactions)}</span>}
+                              {post.reach             !== undefined && <span>👁 {fmt(post.reach)}</span>}
+                              {post.impressions       !== undefined && <span>📊 {fmt(post.impressions)}</span>}
+                              {post.video_views       !== undefined && <span>▶ {fmt(post.video_views)}</span>}
+                              {post.saved             !== undefined && <span>🔖 {fmt(post.saved)}</span>}
+                              {post.shares            !== undefined && <span>↗ {fmt(post.shares)}</span>}
+                              {post.follows           !== undefined && <span>➕ {fmt(post.follows)}</span>}
+                              {post.profile_visits    !== undefined && <span>👤 {fmt(post.profile_visits)}</span>}
                             </div>
                             {post.media_type === "VIDEO" && (
                               <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>

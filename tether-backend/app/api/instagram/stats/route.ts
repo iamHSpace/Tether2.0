@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromBearer } from "@/lib/supabaseServer";
 import { supabase as adminClient } from "@/lib/supabase";
-import { getInstagramAccount, getInstagramMedia } from "@/lib/instagram";
+import { getInstagramAccount, getInstagramMedia, getInstagramAccountInsights } from "@/lib/instagram";
 import { decrypt } from "@/lib/encryption";
 import { platforms } from "@/lib/config";
 
@@ -55,11 +55,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "not_connected" }, { status: 404 });
   }
 
-  // 4. Fetch account + media in parallel
+  // 4. Fetch account, media, and account insights in parallel
   try {
-    const [account, posts] = await Promise.all([
+    const [account, posts, accountInsights] = await Promise.all([
       getInstagramAccount(accessToken),
       getInstagramMedia(accessToken, igUserId),
+      getInstagramAccountInsights(accessToken),
     ]);
 
     // 5. Persist snapshot — fire-and-forget
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
       .insert({
         user_id:  user.id,
         platform: platforms.INSTAGRAM,
-        data:     { account, posts },
+        data:     { account, posts, account_insights: accountInsights },
       })
       .then(({ error }) => {
         if (error) console.error("[instagram/stats] snapshot insert failed:", error.message);
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest) {
       followers_count:     account.followers_count,
       media_count:         account.media_count,
       recent_posts:        posts,
+      account_insights:    accountInsights,
       token_expires_at:    row.token_expiry ?? null,
       connected_at:        row.created_at,
     });

@@ -182,13 +182,37 @@ export interface InstagramPost {
   timestamp:     string;
   like_count:    number;
   comments_count: number;
-  // Insights — populated when instagram_business_manage_insights scope is granted.
-  // Undefined when the scope hasn't been authorised yet or the post type doesn't
-  // support a particular metric (e.g. very old posts, Stories).
-  reach?:        number;
-  impressions?:  number;
-  saved?:        number;
-  shares?:       number;
+  // Per-post insights — require instagram_business_manage_insights scope.
+  // Undefined until scope is granted or if the post type doesn't support
+  // a given metric (e.g. video_views on IMAGE posts).
+  reach?:               number;
+  impressions?:         number;
+  saved?:               number;
+  shares?:              number;
+  video_views?:         number;   // VIDEO only
+  follows?:             number;   // follows sourced from this post
+  profile_visits?:      number;   // profile visits sourced from this post
+  total_interactions?:  number;   // likes + comments + saves + shares (API-computed)
+}
+
+/**
+ * Account-level + audience insights.
+ * Fetched once per stats call via GET /me/insights.
+ * All fields are optional — any subset may be present depending on scope,
+ * account type, and whether the data is available yet.
+ */
+export interface InstagramAccountInsights {
+  // Activity metrics — sum over last 7 days
+  website_clicks?:   number;
+  profile_views?:    number;   // profile page visits
+  account_reach?:    number;   // unique accounts reached
+  account_impressions?: number;
+
+  // Audience breakdown — lifetime snapshots (fractions, 0.0–1.0 unless noted)
+  audience_gender_age?: Record<string, number>;  // "M.25-34" → 0.38
+  audience_country?:    Record<string, number>;  // "IN" → 0.65
+  audience_city?:       Record<string, number>;  // "Mumbai" → 0.12
+  online_followers?:    Record<string, number>;  // "0"–"23" → follower count (absolute)
 }
 
 // ── Per-post insights ─────────────────────────────────────────────────────────
@@ -200,18 +224,20 @@ interface InsightMetric {
 
 /**
  * Fetches lifetime insights for a single media object.
- * Returns partial data — never throws; missing metrics are simply undefined.
+ * Silently returns {} on any error — never throws.
  *
- * Requires: instagram_business_manage_insights scope.
- * In dev mode (Meta app not yet App-Review approved) this works for
- * accounts that are added as Testers in the Meta Developer Console.
+ * video_views is requested only for VIDEO posts; requesting it for other
+ * types causes an API error which would wipe out all metrics for that post.
  */
 async function fetchPostInsights(
   postId:      string,
+  mediaType:   "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM",
   accessToken: string,
-): Promise<Pick<InstagramPost, "reach" | "impressions" | "saved" | "shares">> {
+): Promise<Partial<InstagramPost>> {
   try {
-    const metrics = "reach,impressions,saved,shares";
+    const base = "reach,impressions,saved,shares,follows,profile_visits,total_interactions";
+    const metrics = mediaType === "VIDEO" ? `${base},video_views` : base;
+
     const res = await fetch(
       `${cfg.apiBase}/${postId}/insights?metric=${metrics}&access_token=${accessToken}`,
       { cache: "no-store" },
@@ -224,28 +250,113 @@ async function fetchPostInsights(
       data.data!.find(d => d.name === name)?.values?.[0]?.value;
 
     return {
-      reach:       getValue("reach"),
-      impressions: getValue("impressions"),
-      saved:       getValue("saved"),
-      shares:      getValue("shares"),
+      reach:              getValue("reach"),
+      impressions:        getValue("impressions"),
+      saved:              getValue("saved"),
+      shares:             getValue("shares"),
+      follows:            getValue("follows"),
+      profile_visits:     getValue("profile_visits"),
+      total_interactions: getValue("total_interactions"),
+      ...(mediaType === "VIDEO" ? { video_views: getValue("video_views") } : {}),
     };
   } catch {
-    // Insight fetch should never break the main stats call
+    return {};
+  }
+}
+
+// ── Account-level insights ────────────────────────────────────────────────────
+
+/**
+ * Fetches period-based activity metrics for the authenticated account.
+ * Uses period=day with a 7-day window and sums the daily values.
+ * Metrics: website_clicks, profile_views, reach, impressions.
+ */
+async function fetchPeriodInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+  try {
+    const until = Math.floor(Date.now() / 1000);
+    const since = until - 7 * 24 * 3600;
+    const metrics = "website_clicks,profile_views,reach,impressions";
+    const res = await fetch(
+      `${cfg.apiBase}/me/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return {};
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getSum = (name: string): number | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
+    };
+
+    return {
+      website_clicks:       getSum("website_clicks"),
+      profile_views:        getSum("profile_views"),
+      account_reach:        getSum("reach"),
+      account_impressions:  getSum("impressions"),
+    };
+  } catch {
     return {};
   }
 }
 
 /**
+ * Fetches lifetime audience demographic snapshots.
+ * Metrics: audience_gender_age, audience_country, audience_city, online_followers.
+ */
+async function fetchAudienceInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+  try {
+    const metrics = "audience_gender_age,audience_country,audience_city,online_followers";
+    const res = await fetch(
+      `${cfg.apiBase}/me/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return {};
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getObj = (name: string): Record<string, number> | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      const raw = m?.values?.[0]?.value;
+      return raw && typeof raw === "object" ? raw as Record<string, number> : undefined;
+    };
+
+    return {
+      audience_gender_age: getObj("audience_gender_age"),
+      audience_country:    getObj("audience_country"),
+      audience_city:       getObj("audience_city"),
+      online_followers:    getObj("online_followers"),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Fetches all account-level and audience insights in parallel.
+ * Never throws — returns whatever data is available.
+ */
+export async function getInstagramAccountInsights(
+  accessToken: string,
+): Promise<InstagramAccountInsights> {
+  const [period, audience] = await Promise.allSettled([
+    fetchPeriodInsights(accessToken),
+    fetchAudienceInsights(accessToken),
+  ]);
+  return {
+    ...(period.status   === "fulfilled" ? period.value   : {}),
+    ...(audience.status === "fulfilled" ? audience.value : {}),
+  };
+}
+
+/**
  * Fetches recent media from the authenticated user's Instagram account,
- * then enriches each post with per-post insights (reach, impressions,
- * saved, shares) fetched in parallel.
+ * then enriches each post with per-post insights fetched in parallel.
  *
- * Insight fetch failures are silenced — the post is still returned, just
- * without insight fields.  This keeps the stats call robust against accounts
- * that haven't yet granted instagram_business_manage_insights, or against
- * post types that the insights endpoint doesn't support.
- *
- * Uses GET /me/media — no separate user ID needed.
+ * Insight fetch failures are silenced — the post is still returned without
+ * insight fields. Robust against accounts without the insights scope or
+ * post types that don't support specific metrics.
  */
 export async function getInstagramMedia(
   accessToken: string,
@@ -266,14 +377,14 @@ export async function getInstagramMedia(
   const posts = (data.data ?? []) as InstagramPost[];
   if (!posts.length) return posts;
 
-  // Fan out insights requests in parallel — one per post
+  // Fan out insights requests in parallel — one per post, passing media_type
+  // so video_views is only requested for VIDEO posts (other types error on it)
   const insightResults = await Promise.allSettled(
-    posts.map(p => fetchPostInsights(p.id, accessToken)),
+    posts.map(p => fetchPostInsights(p.id, p.media_type, accessToken)),
   );
 
   return posts.map((post, i) => {
-    const insights =
-      insightResults[i].status === "fulfilled" ? insightResults[i].value : {};
+    const insights = insightResults[i].status === "fulfilled" ? insightResults[i].value : {};
     return { ...post, ...insights };
   });
 }

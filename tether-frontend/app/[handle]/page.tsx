@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { fmt, timeAgo } from "@/lib/utils";
-import { Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData, InstagramSnapshotData } from "@/lib/api";
+import { Profile, PlatformInfo, MetricVisibility, DEFAULT_METRIC_VISIBILITY, SnapshotData, InstagramSnapshotData, InstagramAccountInsights } from "@/lib/api";
 import {
   IconYoutube, IconInstagram, IconExternal, IconShield,
   IconUsers, IconEye, IconVideo, IconTrendUp,
@@ -373,13 +373,148 @@ function YouTubeSection({ ytPlatform, ytData, analytics, mv, hasAnyVisible }: {
 
 // ── InstagramSection ───────────────────────────────────────────────────────────
 
+// ── Instagram audience helpers ─────────────────────────────────────────────────
+
+function parseGenderAge(raw: Record<string, number>) {
+  let male = 0; let female = 0;
+  const brackets: { label: string; pct: number }[] = [];
+  for (const [key, val] of Object.entries(raw)) {
+    const pct = val <= 1 ? Math.round(val * 100) : Math.round(val);
+    if (key.startsWith("M.")) male += pct;
+    else if (key.startsWith("F.")) female += pct;
+    brackets.push({ label: key.replace("M.", "M ").replace("F.", "F "), pct });
+  }
+  brackets.sort((a, b) => b.pct - a.pct);
+  return { male, female, brackets: brackets.slice(0, 6) };
+}
+
+function parseTopCountries(raw: Record<string, number>) {
+  return Object.entries(raw)
+    .map(([code, val]) => ({ code, pct: val <= 1 ? Math.round(val * 100) : Math.round(val) }))
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 5);
+}
+
+function parseOnlineHours(raw: Record<string, number>) {
+  const max = Math.max(...Object.values(raw), 1);
+  return Array.from({ length: 24 }, (_, h) => ({
+    hour: h,
+    label: h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`,
+    count: raw[String(h)] ?? 0,
+    pct:   Math.round(((raw[String(h)] ?? 0) / max) * 100),
+  }));
+}
+
+function AudienceSection({ insights }: { insights: InstagramAccountInsights }) {
+  const hasGenderAge  = !!insights.audience_gender_age && Object.keys(insights.audience_gender_age).length > 0;
+  const hasCountry    = !!insights.audience_country    && Object.keys(insights.audience_country).length > 0;
+  const hasOnline     = !!insights.online_followers    && Object.keys(insights.online_followers).length > 0;
+
+  if (!hasGenderAge && !hasCountry && !hasOnline) return null;
+
+  const ga      = hasGenderAge ? parseGenderAge(insights.audience_gender_age!)   : null;
+  const countries = hasCountry ? parseTopCountries(insights.audience_country!)   : null;
+  const hours   = hasOnline    ? parseOnlineHours(insights.online_followers!)     : null;
+  const peakHour = hours ? hours.reduce((best, h) => h.count > best.count ? h : best, hours[0]) : null;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Audience Insights</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Gender / Age */}
+        {ga && (
+          <div className="bg-white/60 rounded-xl p-4 border border-white/80 space-y-3">
+            <p className="text-xs font-bold text-gray-700">Gender Split</p>
+            {/* Gender bar */}
+            <div className="flex rounded-full overflow-hidden h-3">
+              <div className="bg-blue-400 transition-all" style={{ width: `${ga.male}%` }} title={`Male ${ga.male}%`} />
+              <div className="bg-pink-400 flex-1" title={`Female ${ga.female}%`} />
+            </div>
+            <div className="flex gap-4 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />Male {ga.male}%</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />Female {ga.female}%</span>
+            </div>
+            {/* Top age brackets */}
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Top Age Brackets</p>
+              {ga.brackets.map(b => (
+                <div key={b.label} className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500 w-14 shrink-0">{b.label}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-pink-400"
+                      style={{ width: `${Math.min(b.pct * 2, 100)}%` }} />
+                  </div>
+                  <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{b.pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Countries */}
+        {countries && (
+          <div className="bg-white/60 rounded-xl p-4 border border-white/80 space-y-2">
+            <p className="text-xs font-bold text-gray-700">Top Countries</p>
+            {countries.map(c => (
+              <div key={c.code} className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500 w-7 shrink-0 font-mono">{c.code}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-400"
+                    style={{ width: `${Math.min(c.pct * 1.5, 100)}%` }} />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{c.pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Best time to post — 24h heatmap */}
+      {hours && peakHour && (
+        <div className="bg-white/60 rounded-xl p-4 border border-white/80">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold text-gray-700">Best Time to Post</p>
+            <span className="text-[10px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded-full">
+              Peak: {peakHour.label} UTC
+            </span>
+          </div>
+          <div className="flex items-end gap-0.5 h-10">
+            {hours.map(h => (
+              <div key={h.hour} className="flex-1 flex flex-col items-center gap-0.5" title={`${h.label}: ${fmt(h.count)} followers online`}>
+                <div
+                  className={`w-full rounded-sm transition-all ${h.hour === peakHour.hour ? "bg-purple-500" : "bg-purple-200"}`}
+                  style={{ height: `${Math.max(h.pct, 4)}%` }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+            <span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
+  const insights = igData.account_insights;
   const postsWithInsights = igData.posts.filter(p => p.reach !== undefined);
-  const hasInsights = postsWithInsights.length > 0;
-  const avgReach       = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0) / postsWithInsights.length) : 0;
-  const avgImpressions = hasInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0) / postsWithInsights.length) : 0;
-  const totalSaved     = hasInsights ? igData.posts.reduce((s, p) => s + (p.saved ?? 0), 0) : 0;
-  const totalShares    = hasInsights ? igData.posts.reduce((s, p) => s + (p.shares ?? 0), 0) : 0;
+  const hasPostInsights = postsWithInsights.length > 0;
+  const avgReach            = hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.reach ?? 0), 0)              / postsWithInsights.length) : 0;
+  const avgImpressions      = hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.impressions ?? 0), 0)        / postsWithInsights.length) : 0;
+  const avgTotalInteractions= hasPostInsights ? Math.round(postsWithInsights.reduce((s, p) => s + (p.total_interactions ?? 0), 0) / postsWithInsights.length) : 0;
+  const totalSaved          = hasPostInsights ? igData.posts.reduce((s, p) => s + (p.saved ?? 0), 0)          : 0;
+  const totalShares         = hasPostInsights ? igData.posts.reduce((s, p) => s + (p.shares ?? 0), 0)         : 0;
+  const totalFollows        = hasPostInsights ? igData.posts.reduce((s, p) => s + (p.follows ?? 0), 0)        : 0;
+  const totalProfileVisits  = hasPostInsights ? igData.posts.reduce((s, p) => s + (p.profile_visits ?? 0), 0) : 0;
+
+  const hasAccountInsights = insights && (
+    insights.website_clicks !== undefined ||
+    insights.profile_views  !== undefined ||
+    insights.account_reach  !== undefined
+  );
 
   return (
     <div className="space-y-4">
@@ -402,17 +537,39 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
 
       {/* Core stats */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard icon={IconUsers} label="Followers" value={fmt(igData.account.followers_count)} bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
-        <MetricCard icon={IconVideo} label="Total Posts" value={fmt(igData.account.media_count)} bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+        <MetricCard icon={IconUsers} label="Followers"   value={fmt(igData.account.followers_count)} bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+        <MetricCard icon={IconVideo} label="Total Posts" value={fmt(igData.account.media_count)}     bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
       </div>
 
-      {/* Aggregate insight cards — visible only when insights are available */}
-      {hasInsights && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <InsightCard label="Avg Reach"       value={fmt(avgReach)}       sub="per post" />
-          <InsightCard label="Avg Impressions" value={fmt(avgImpressions)} sub="per post" />
-          <InsightCard label="Total Saves"     value={fmt(totalSaved)}     sub="across recent posts" />
-          <InsightCard label="Total Shares"    value={fmt(totalShares)}    sub="across recent posts" />
+      {/* Account-level insights (last 7 days) */}
+      {hasAccountInsights && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Last 7 Days</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {insights!.account_reach        !== undefined && <InsightCard label="Account Reach"    value={fmt(insights!.account_reach!)}       sub="unique accounts" />}
+            {insights!.account_impressions  !== undefined && <InsightCard label="Impressions"      value={fmt(insights!.account_impressions!)} sub="total content views" />}
+            {insights!.profile_views        !== undefined && <InsightCard label="Profile Visits"   value={fmt(insights!.profile_views!)}       sub="profile page visits" />}
+            {insights!.website_clicks       !== undefined && <InsightCard label="Website Clicks"   value={fmt(insights!.website_clicks!)}      sub="link-in-bio taps" />}
+          </div>
+        </div>
+      )}
+
+      {/* Audience demographics */}
+      {insights && <AudienceSection insights={insights} />}
+
+      {/* Per-post aggregate insights */}
+      {hasPostInsights && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Post Performance (Recent {postsWithInsights.length} posts)</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <InsightCard label="Avg Reach"         value={fmt(avgReach)}             sub="per post" />
+            <InsightCard label="Avg Impressions"   value={fmt(avgImpressions)}       sub="per post" />
+            <InsightCard label="Avg Interactions"  value={fmt(avgTotalInteractions)} sub="likes+comments+saves+shares" />
+            <InsightCard label="Total Saves"       value={fmt(totalSaved)}           sub="across recent posts" />
+            <InsightCard label="Total Shares"      value={fmt(totalShares)}          sub="across recent posts" />
+            {totalFollows       > 0 && <InsightCard label="New Follows"     value={fmt(totalFollows)}       sub="from recent posts" />}
+            {totalProfileVisits > 0 && <InsightCard label="Profile Visits"  value={fmt(totalProfileVisits)} sub="from recent posts" />}
+          </div>
         </div>
       )}
 
@@ -431,13 +588,17 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
                         <IconInstagram size={18} className="text-pink-300" />
                       </div>
                   }
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1 text-white text-[10px] font-semibold">
+                  <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1.5 text-white text-[10px] font-semibold">
                     <span>♥ {fmt(post.like_count)}</span>
                     <span>💬 {fmt(post.comments_count)}</span>
-                    {post.reach       !== undefined && <span>👁 {fmt(post.reach)}</span>}
-                    {post.impressions !== undefined && <span>📊 {fmt(post.impressions)}</span>}
-                    {post.saved       !== undefined && <span>🔖 {fmt(post.saved)}</span>}
-                    {post.shares      !== undefined && <span>↗ {fmt(post.shares)}</span>}
+                    {post.total_interactions !== undefined && <span>⚡ {fmt(post.total_interactions)}</span>}
+                    {post.reach             !== undefined && <span>👁 {fmt(post.reach)}</span>}
+                    {post.impressions       !== undefined && <span>📊 {fmt(post.impressions)}</span>}
+                    {post.video_views       !== undefined && <span>▶ {fmt(post.video_views)}</span>}
+                    {post.saved             !== undefined && <span>🔖 {fmt(post.saved)}</span>}
+                    {post.shares            !== undefined && <span>↗ {fmt(post.shares)}</span>}
+                    {post.follows           !== undefined && <span>➕ {fmt(post.follows)}</span>}
+                    {post.profile_visits    !== undefined && <span>👤 {fmt(post.profile_visits)}</span>}
                   </div>
                   {post.media_type === "VIDEO" && (
                     <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
