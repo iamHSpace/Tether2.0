@@ -9,7 +9,6 @@ import {
 import { ShareButton } from "./_components/ShareButton";
 import { VideoList } from "./_components/VideoList";
 import { TrackView } from "./_components/TrackView";
-import { PlatformTabs } from "./_components/PlatformTabs";
 
 export const revalidate = 300;
 
@@ -653,12 +652,6 @@ export default async function CreatorPublicProfile(
   const hasAnyVisible = mv.subscribers || mv.total_views || mv.video_count || mv.avg_views || mv.view_chart || mv.recent_videos;
   const initials = (profile.full_name?.[0] ?? profile.username?.[0] ?? "?").toUpperCase();
 
-  // Determine which platforms have data for tab display
-  const activePlatforms: { id: "youtube" | "instagram"; subtitle?: string }[] = [];
-  if (ytPlatform && ytData) activePlatforms.push({ id: "youtube", subtitle: ytData.channel.subscribers ? `${fmt(ytData.channel.subscribers)} subs` : undefined });
-  if (igPlatform && igData) activePlatforms.push({ id: "instagram", subtitle: igData.account.followers_count ? `${fmt(igData.account.followers_count)} followers` : undefined });
-  const useTabLayout = activePlatforms.length > 1;
-
   return (
     <div className="min-h-screen bg-[#f5f0e8]">
       {/* Nav */}
@@ -754,38 +747,77 @@ export default async function CreatorPublicProfile(
           </div>
         )}
 
-        {/* ── Platform content (tabs when multiple platforms, inline otherwise) */}
-        {useTabLayout ? (
-          <PlatformTabs
-            tabs={activePlatforms}
-            youtube={ytPlatform && ytData ? (
-              <YouTubeSection
-                ytPlatform={ytPlatform}
-                ytData={ytData}
-                analytics={analytics}
-                mv={mv}
-                hasAnyVisible={hasAnyVisible}
-              />
-            ) : undefined}
-            instagram={igPlatform && igData ? (
-              <InstagramSection igData={igData} />
-            ) : undefined}
-          />
-        ) : (
+        {/* Instagram: connected but no snapshot yet */}
+        {igPlatform && !igData && (
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <IconInstagram size={17} className="text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">@{igPlatform.metadata?.username as string ?? igPlatform.platform_username}</p>
+                <p className="text-xs text-gray-400">Instagram</p>
+              </div>
+              <a href={`https://instagram.com/${igPlatform.metadata?.username as string ?? igPlatform.platform_username}`}
+                target="_blank" rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+                <IconExternal size={11} /> View on Instagram
+              </a>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {(igPlatform.metadata?.followers_count as number) > 0 && (
+                <MetricCard icon={IconUsers} label="Followers"
+                  value={fmt(igPlatform.metadata?.followers_count as number)}
+                  bg="bg-[#fdf0f6]" iconColor="text-pink-500" />
+              )}
+              {(igPlatform.metadata?.media_count as number) > 0 && (
+                <MetricCard icon={IconVideo} label="Total Posts"
+                  value={fmt(igPlatform.metadata?.media_count as number)}
+                  bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-3 text-center">
+              Full metrics will appear after the creator visits their dashboard.
+            </p>
+          </div>
+        )}
+
+        {/* ── Platform content — always stacked, no tabs ─────────────────── */}
+        {ytPlatform && ytData && (
           <>
-            {/* Single platform — show inline without tab wrapper */}
-            {ytPlatform && ytData && (
-              <YouTubeSection
-                ytPlatform={ytPlatform}
-                ytData={ytData}
-                analytics={analytics}
-                mv={mv}
-                hasAnyVisible={hasAnyVisible}
-              />
+            {/* YouTube divider (only shown when Instagram is also present) */}
+            {igPlatform && (
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-red-200 to-transparent" />
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100">
+                  <IconYoutube size={12} className="text-red-500" />
+                  <span className="text-xs font-bold text-red-600">YouTube</span>
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent via-red-200 to-transparent" />
+              </div>
             )}
-            {igPlatform && igData && (
-              <InstagramSection igData={igData} />
-            )}
+            <YouTubeSection
+              ytPlatform={ytPlatform}
+              ytData={ytData}
+              analytics={analytics}
+              mv={mv}
+              hasAnyVisible={hasAnyVisible}
+            />
+          </>
+        )}
+
+        {igPlatform && igData && (
+          <>
+            {/* Instagram divider */}
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-pink-200 to-transparent" />
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 border border-pink-100">
+                <IconInstagram size={12} className="text-pink-500" />
+                <span className="text-xs font-bold text-pink-600">Instagram</span>
+              </div>
+              <div className="h-px flex-1 bg-gradient-to-l from-transparent via-pink-200 to-transparent" />
+            </div>
+            <InstagramSection igData={igData} />
           </>
         )}
 

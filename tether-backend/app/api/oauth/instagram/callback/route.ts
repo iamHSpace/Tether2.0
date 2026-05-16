@@ -69,7 +69,7 @@ export async function GET(req: Request) {
           access_token:      encryptedToken,
           refresh_token:     null,
           token_expiry:      tokenExpiry,
-          scope:             "instagram_business_basic",
+          scope:             "instagram_business_basic,instagram_business_manage_insights",
           platform_user_id:  account.id,
           platform_username: account.name,
           metadata: {

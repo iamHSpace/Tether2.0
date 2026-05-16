@@ -299,6 +299,10 @@ export default function DashboardPage() {
       if (ytErr) setYtConnectError(friendlyError(new Error(decodeURIComponent(ytErr))));
       const igErr = params.get("instagram_error");
       if (igErr) setIgConnectError(decodeURIComponent(igErr));
+      // Switch to the relevant tab after OAuth redirect
+      if (params.has("instagram_connected") || params.has("instagram_error")) {
+        setActiveTab("instagram");
+      }
       window.history.replaceState({}, "", "/dashboard");
     }
   }, []);
@@ -696,61 +700,13 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {ytError        && activeTab === "youtube"    && <ErrorAlert message={ytError}        onRetry={refreshMetrics} />}
-          {ytConnectError &&                               <ErrorAlert message={ytConnectError} onRetry={connectYouTube} />}
-          {igError        && activeTab === "instagram" && <ErrorAlert message={igError}        onRetry={connectInstagram} />}
-          {igConnectError &&                               <ErrorAlert message={igConnectError} onRetry={connectInstagram} />}
+          {ytError        && <ErrorAlert message={ytError}        onRetry={refreshMetrics} />}
+          {ytConnectError && <ErrorAlert message={ytConnectError} onRetry={connectYouTube} />}
+          {igError        && <ErrorAlert message={igError}        onRetry={connectInstagram} />}
+          {igConnectError && <ErrorAlert message={igConnectError} onRetry={connectInstagram} />}
 
-          {/* ── Platform Tabs ──────────────────────────────────────────────── */}
-          {!loading && (
-            <div className="flex gap-1 p-1 bg-white rounded-2xl border border-gray-100 shadow-card w-fit">
-              <button
-                onClick={() => setActiveTab("youtube")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                  activeTab === "youtube"
-                    ? "bg-red-50 text-red-600"
-                    : "text-gray-300 hover:text-gray-500"
-                )}
-              >
-                <IconYoutube size={15} />
-                <span>YouTube</span>
-                {ytData && <span className="text-[10px] font-normal opacity-70">{fmt(ytData.channel.subscribers)} subs</span>}
-              </button>
-              <button
-                onClick={() => setActiveTab("instagram")}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                  activeTab === "instagram"
-                    ? "bg-pink-50 text-pink-600"
-                    : "text-gray-300 hover:text-gray-500"
-                )}
-              >
-                <IconInstagram size={15} />
-                <span>Instagram</span>
-                {igData && <span className="text-[10px] font-normal opacity-70">{fmt(igData.followers_count)} followers</span>}
-              </button>
-            </div>
-          )}
-
-          {/* ── YouTube not connected (shown only on YouTube tab) ─────────── */}
-          {activeTab === "youtube" && !loading && ytConnected === false && !ytData && !ytExpired && (
-            <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
-              <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
-                <IconYoutube size={24} className="text-red-400" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900 mb-1">Connect YouTube to see analytics</h3>
-              <p className="text-xs text-gray-400 mb-4 max-w-xs mx-auto">Link your channel to start showing verified metrics on your public profile.</p>
-              <button onClick={connectYouTube} disabled={ytConnecting}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
-                <IconYoutube size={15} className={cn("text-white", ytConnecting && "animate-pulse")} />
-                {ytConnecting ? "Redirecting…" : "Connect YouTube"}
-              </button>
-            </div>
-          )}
-
-          {/* ── Instagram not connected (shown only on Instagram tab) ─────── */}
-          {activeTab === "instagram" && !loading && igConnected === false && !igData && !igExpired && (
+          {/* ── Instagram Stats (always visible when connected) ───────────── */}
+          {!loading && igConnected === false && !igData && !igExpired && (
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
               <div className="w-14 h-14 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center mx-auto mb-4">
                 <IconInstagram size={24} className="text-pink-400" />
@@ -765,8 +721,34 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {activeTab === "youtube" && ytData && analytics && (
+          {/* ── YouTube not connected ─────────────────────────────────────── */}
+          {!loading && ytConnected === false && !ytData && !ytExpired && (
+            <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-card text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+                <IconYoutube size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Connect YouTube to see analytics</h3>
+              <p className="text-xs text-gray-400 mb-4 max-w-xs mx-auto">Link your channel to start showing verified metrics on your public profile.</p>
+              <button onClick={connectYouTube} disabled={ytConnecting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                <IconYoutube size={15} className={cn("text-white", ytConnecting && "animate-pulse")} />
+                {ytConnecting ? "Redirecting…" : "Connect YouTube"}
+              </button>
+            </div>
+          )}
+
+          {ytData && analytics && (
             <>
+              {/* YouTube platform header */}
+              <div className="flex items-center gap-3 pt-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-red-200 to-transparent" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-100">
+                  <IconYoutube size={13} className="text-red-500" />
+                  <span className="text-xs font-bold text-red-600">YouTube</span>
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent via-red-200 to-transparent" />
+              </div>
+
               {/* ── Channel Overview ─────────────────────────────────────────── */}
               <section>
                 <SectionHeader title="Channel Overview" subtitle="Core stats pulled directly from YouTube Data API." />
@@ -1028,8 +1010,40 @@ export default function DashboardPage() {
           )}
 
           {/* ── Instagram Stats ───────────────────────────────────────────── */}
-          {activeTab === "instagram" && igData && (
+          {igData && (
             <>
+              {/* Platform divider */}
+              <div className="flex items-center gap-3 pt-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-pink-200 to-transparent" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 border border-pink-100">
+                  <IconInstagram size={13} className="text-pink-500" />
+                  <span className="text-xs font-bold text-pink-600">Instagram</span>
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent via-pink-200 to-transparent" />
+              </div>
+
+              {/* Insights upgrade nudge — shown when no account-level insights returned */}
+              {!igData.account_insights?.account_reach &&
+               !igData.account_insights?.profile_views &&
+               !igData.account_insights?.website_clicks && (
+                <div className="flex items-start gap-3 p-4 rounded-2xl bg-purple-50 border border-purple-100">
+                  <IconInstagram size={16} className="text-purple-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-purple-800">Unlock reach, impressions &amp; audience insights</p>
+                    <p className="text-xs text-purple-600 mt-0.5">
+                      Go to <strong>Settings → Connections</strong> and click <strong>Reconnect</strong> to grant the insights permission.
+                    </p>
+                  </div>
+                  <button
+                    onClick={connectInstagram}
+                    disabled={igConnecting}
+                    className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-all"
+                  >
+                    {igConnecting ? "Redirecting…" : "Reconnect"}
+                  </button>
+                </div>
+              )}
+
               {/* Overview */}
               <section>
                 <SectionHeader title="Instagram Overview" subtitle="Stats pulled directly from Instagram Graph API." />
