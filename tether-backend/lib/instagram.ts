@@ -296,27 +296,23 @@ async function fetchPostInsights(
 // ── Account-level insights ────────────────────────────────────────────────────
 
 /**
- * Fetches period-based activity metrics for the authenticated account.
- * Uses period=day with a 7-day window and sums the daily values.
- * Metrics: website_clicks, profile_views, reach, impressions.
+ * Fetches activity metrics (website_clicks, profile_views) for the authenticated account.
+ * Uses period=day without a date range — Instagram returns the last 7 days by default.
+ * These metrics only require instagram_business_basic scope.
  */
-async function fetchPeriodInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+async function fetchActivityInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
   try {
-    // Use 28-day window — same proven endpoint, extended range
-    const until = Math.floor(Date.now() / 1000);
-    const since = until - 28 * 24 * 3600;
-    const metrics = "website_clicks,profile_views,reach,impressions";
     const res = await fetch(
-      `${cfg.apiBase}/me/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      `${cfg.apiBase}/me/insights?metric=website_clicks,profile_views&period=day&access_token=${accessToken}`,
       { cache: "no-store" },
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error("[ig:period]", res.status, JSON.stringify(err).substring(0, 200));
+      console.error("[ig:activity]", res.status, JSON.stringify(err));
       return {};
     }
     const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) { console.warn("[ig:period] no data field in response"); return {}; }
+    if (!data.data) return {};
 
     const getSum = (name: string): number | undefined => {
       const m = data.data!.find(d => d.name === name);
@@ -324,6 +320,42 @@ async function fetchPeriodInsights(accessToken: string): Promise<Partial<Instagr
       return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
     };
 
+    return {
+      website_clicks: getSum("website_clicks"),
+      profile_views:  getSum("profile_views"),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Fetches reach and impressions daily time-series for the last 30 days.
+ * Requires instagram_business_manage_insights scope.
+ * Returns per-day arrays for charting; falls back gracefully on any error.
+ */
+async function fetchReachInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+  try {
+    const until = Math.floor(Date.now() / 1000);
+    const since = until - 30 * 24 * 3600;
+    const res = await fetch(
+      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[ig:reach]", res.status, JSON.stringify(err));
+      // Try without date range as a fallback (returns last ~7 days)
+      return fetchReachInsightsFallback(accessToken);
+    }
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getSum = (name: string): number | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
+    };
     const getValues = (name: string): number[] | undefined => {
       const m = data.data!.find(d => d.name === name);
       if (!m?.values?.length) return undefined;
@@ -331,11 +363,45 @@ async function fetchPeriodInsights(accessToken: string): Promise<Partial<Instagr
     };
 
     return {
-      website_clicks:      getSum("website_clicks"),
-      profile_views:       getSum("profile_views"),
       account_reach:       getSum("reach"),
       account_impressions: getSum("impressions"),
-      // Per-day arrays for the Reach & Growth chart
+      reach_30d:           getValues("reach"),
+      impressions_30d:     getValues("impressions"),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/** Fallback: fetch reach/impressions without a date range (last ~7 days). */
+async function fetchReachInsightsFallback(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+  try {
+    const res = await fetch(
+      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[ig:reach-fallback]", res.status, JSON.stringify(err));
+      return {};
+    }
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getSum = (name: string): number | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
+    };
+    const getValues = (name: string): number[] | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.map(v => v.value ?? 0);
+    };
+
+    return {
+      account_reach:       getSum("reach"),
+      account_impressions: getSum("impressions"),
       reach_30d:           getValues("reach"),
       impressions_30d:     getValues("impressions"),
     };
@@ -383,16 +449,21 @@ async function fetchAudienceInsights(accessToken: string): Promise<Partial<Insta
 /**
  * Fetches all account-level and audience insights in parallel.
  * Never throws — returns whatever data is available.
+ *
+ * Three independent calls so a failure in one (e.g. reach requires
+ * instagram_business_manage_insights) doesn't block the others.
  */
 export async function getInstagramAccountInsights(
   accessToken: string,
 ): Promise<InstagramAccountInsights> {
-  const [period, audience] = await Promise.allSettled([
-    fetchPeriodInsights(accessToken),
+  const [activity, reach, audience] = await Promise.allSettled([
+    fetchActivityInsights(accessToken),
+    fetchReachInsights(accessToken),
     fetchAudienceInsights(accessToken),
   ]);
   return {
-    ...(period.status   === "fulfilled" ? period.value   : {}),
+    ...(activity.status === "fulfilled" ? activity.value : {}),
+    ...(reach.status    === "fulfilled" ? reach.value    : {}),
     ...(audience.status === "fulfilled" ? audience.value : {}),
   };
 }
