@@ -6,6 +6,7 @@ const CORS_ORIGINS = new Set(
   [
     process.env.FRONTEND_URL,
     "https://statvora.in",
+    "https://www.statvora.in",
     // Local dev — allow both hostname forms so the browser never hits a CORS wall
     "http://localhost:3001",
     "http://127.0.0.1:3001",
