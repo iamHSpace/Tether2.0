@@ -906,6 +906,14 @@ export default function SettingsPage() {
                       setThemeSaving(true);
                       try {
                         await api.profile.update({ theme_config: themeConfig as unknown as import("@/lib/api").ProfileThemeConfig });
+                        // Bust the ISR + fetch cache so the public profile reflects the new theme immediately
+                        if (profile.username) {
+                          await fetch("/api/revalidate", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: profile.username }),
+                          }).catch(() => { /* non-fatal */ });
+                        }
                         setThemeSaved(true);
                         setTimeout(() => setThemeSaved(false), 3000);
                       } catch {
