@@ -514,6 +514,8 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
     insights.profile_views  !== undefined ||
     insights.account_reach  !== undefined
   );
+  const hasReachChart = insights?.reach_30d && insights.reach_30d.length > 0;
+  const reach30dTotal = hasReachChart ? insights!.reach_30d!.reduce((s, v) => s + v, 0) : 0;
 
   return (
     <div className="space-y-4">
@@ -540,13 +542,31 @@ function InstagramSection({ igData }: { igData: InstagramSnapshotData }) {
         <MetricCard icon={IconVideo} label="Total Posts" value={fmt(igData.account.media_count)}     bg="bg-[#f5f0fe]" iconColor="text-purple-500" />
       </div>
 
+      {/* 30-Day Reach chart */}
+      {hasReachChart && (
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-bold text-gray-900">30-Day Reach</h3>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-100">
+              <IconShield size={8} /> Verified via Statvora
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mb-1">
+            <span className="text-lg font-bold text-gray-900">{fmt(reach30dTotal)}</span>
+            <span className="ml-1">unique accounts reached in the last 30 days</span>
+          </p>
+          <div className="mt-3">
+            <AreaChart data={insights!.reach_30d!} color="#ec4899" gradientId="pub-ig-reach-30d" />
+          </div>
+        </div>
+      )}
+
       {/* Account-level insights (last 7 days) */}
       {hasAccountInsights && (
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Last 7 Days</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {insights!.account_reach        !== undefined && <InsightCard label="Account Reach"    value={fmt(insights!.account_reach!)}       sub="unique accounts" />}
-            {insights!.account_impressions  !== undefined && <InsightCard label="Impressions"      value={fmt(insights!.account_impressions!)} sub="total content views" />}
             {insights!.profile_views        !== undefined && <InsightCard label="Profile Visits"   value={fmt(insights!.profile_views!)}       sub="profile page visits" />}
             {insights!.website_clicks       !== undefined && <InsightCard label="Website Clicks"   value={fmt(insights!.website_clicks!)}      sub="link-in-bio taps" />}
           </div>
