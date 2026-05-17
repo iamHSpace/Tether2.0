@@ -7,29 +7,27 @@ on:
 
 jobs:
   deploy-frontend:
-    name: Deploy tether-frontend
+    name: Deploy Frontend → statvora.in
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Vercel (production)
+      - name: Deploy statvora-frontend
         working-directory: tether-frontend
-        run: npx vercel --prod --yes
+        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_FRONTEND }}
+          VERCEL_ORG_ID: team_w61EPm8QPeCRNJAt1TAYUX2a
+          VERCEL_PROJECT_ID: prj_7bF4HTZL1AATeT9CXOpAcXdpDX9I
 
   deploy-backend:
-    name: Deploy tether-backend
+    name: Deploy Backend → api.statvora.in
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Vercel (production)
+      - name: Deploy statvora-backend
         working-directory: tether-backend
-        run: npx vercel --prod --yes
+        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_BACKEND }}
+          VERCEL_ORG_ID: team_w61EPm8QPeCRNJAt1TAYUX2a
+          VERCEL_PROJECT_ID: prj_DwCyPlnCTFDbE3vGTnowRTboTynv
