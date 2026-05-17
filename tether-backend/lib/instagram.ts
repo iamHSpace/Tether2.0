@@ -412,22 +412,38 @@ async function fetchReachInsightsFallback(accessToken: string): Promise<Partial<
 
 /**
  * Fetches lifetime audience demographic snapshots.
- * Metrics: audience_gender_age, audience_country, audience_city, online_followers.
+ * Tries the full metric set first; if Instagram returns 400 (e.g. audience_city
+ * or online_followers not supported on this account type), retries with just
+ * the two core metrics that are universally available.
  */
 async function fetchAudienceInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
+  const full = await _fetchAudienceMetrics(
+    accessToken,
+    "audience_gender_age,audience_country,audience_city,online_followers",
+  );
+  if (full !== null) return full;
+
+  // audience_city / online_followers may not be available on all account types
+  const core = await _fetchAudienceMetrics(accessToken, "audience_gender_age,audience_country");
+  return core ?? {};
+}
+
+async function _fetchAudienceMetrics(
+  accessToken: string,
+  metrics: string,
+): Promise<Partial<InstagramAccountInsights> | null> {
   try {
-    const metrics = "audience_gender_age,audience_country,audience_city,online_followers";
     const res = await fetch(
       `${cfg.apiBase}/me/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
       { cache: "no-store" },
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error("[ig:audience]", res.status, JSON.stringify(err).substring(0, 200));
-      return {};
+      console.error("[ig:audience]", res.status, JSON.stringify(err));
+      return null; // signal caller to try narrower metric set
     }
     const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) { console.warn("[ig:audience] no data field in response"); return {}; }
+    if (!data.data) return {};
 
     const getObj = (name: string): Record<string, number> | undefined => {
       const m = data.data!.find(d => d.name === name);
@@ -442,7 +458,7 @@ async function fetchAudienceInsights(accessToken: string): Promise<Partial<Insta
       online_followers:    getObj("online_followers"),
     };
   } catch {
-    return {};
+    return null;
   }
 }
 
