@@ -610,28 +610,28 @@ export default function DashboardPage() {
               {loading ? (
                 <Skeleton className="h-20 rounded-2xl" />
               ) : ytData ? (
-                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center gap-3">
+                  <div className="shrink-0">
                     {ytData.channel.thumbnail
                       ? <img src={ytData.channel.thumbnail} alt={ytData.channel.name} width={40} height={40} className="rounded-full ring-2 ring-red-100" />
                       : <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center"><IconYoutube size={20} className="text-white" /></div>
                     }
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-gray-900">{ytData.channel.name}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Live</span>
-                      </div>
-                      {ytData.channel.handle && <p className="text-xs text-gray-400">{ytData.channel.handle}</p>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{ytData.channel.name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">✓ Live</span>
+                      {ytData.channel.handle && <p className="text-xs text-gray-400 truncate">{ytData.channel.handle}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button onClick={refreshMetrics} disabled={refreshing}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50">
                       <IconRefresh size={11} className={refreshing ? "animate-spin" : ""} />
                       {refreshing ? "Refreshing…" : "Refresh"}
                     </button>
                     <a href={`https://youtube.com/channel/${ytData.channel.id}`} target="_blank" rel="noopener noreferrer"
-                      className="w-7 h-7 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                      className="w-7 h-7 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 shrink-0">
                       <IconExternal size={11} className="text-gray-400" />
                     </a>
                   </div>
@@ -659,22 +659,22 @@ export default function DashboardPage() {
               {loading ? (
                 <Skeleton className="h-20 rounded-2xl" />
               ) : igData ? (
-                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card flex items-center gap-3">
+                  <div className="shrink-0">
                     {igData.profile_picture_url
                       ? <img src={igData.profile_picture_url} alt={igData.username} width={40} height={40} className="rounded-full ring-2 ring-pink-100" />
                       : <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"><IconInstagram size={18} className="text-white" /></div>
                     }
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-gray-900">@{igData.username}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Live</span>
-                      </div>
-                      <p className="text-xs text-gray-400">{fmt(igData.followers_count)} followers</p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">@{igData.username}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">✓ Live</span>
+                      <p className="text-xs text-gray-400 truncate">{fmt(igData.followers_count)} followers</p>
                     </div>
                   </div>
                   <button onClick={connectInstagram} disabled={igConnecting}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-50 shrink-0">
                     <IconRefresh size={11} className={igConnecting ? "animate-spin" : ""} />
                     Re-connect
                   </button>
