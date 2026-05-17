@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await adminClient
     .from("profiles")
-    .select("id, username, full_name, company_name, bio, website, avatar_url, creator_stage, aspiration, platform_reason, metric_visibility, user_type, category")
+    .select("id, username, full_name, company_name, bio, website, avatar_url, creator_stage, aspiration, platform_reason, metric_visibility, user_type, category, theme_config")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest) {
   }
 
   // Allow only known profile columns — never let the client set id or timestamps
-  const ALLOWED = ["username", "full_name", "company_name", "bio", "website", "avatar_url", "creator_stage", "aspiration", "platform_reason", "metric_visibility", "user_type", "category"] as const;
+  const ALLOWED = ["username", "full_name", "company_name", "bio", "website", "avatar_url", "creator_stage", "aspiration", "platform_reason", "metric_visibility", "user_type", "category", "theme_config"] as const;
   const update: Record<string, unknown> = { id: user.id };
   for (const key of ALLOWED) {
     if (key in body) update[key] = body[key];

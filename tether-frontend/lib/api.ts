@@ -243,7 +243,18 @@ export interface Profile {
   metric_visibility: MetricVisibility | null;
   category: string | null;
   user_type: "creator" | "business" | null;
+  /** Creator-chosen profile theme config — drives the public profile appearance */
+  theme_config: ProfileThemeConfig | null;
   updated_at?: string;
+}
+
+/** Subset of ThemeConfig that is persisted to the DB */
+export interface ProfileThemeConfig {
+  theme:      string;
+  typography: string;
+  palette:    string;
+  texture:    string;
+  layout:     string;
 }
 
 export interface ProfileResponse {

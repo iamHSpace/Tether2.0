@@ -2,9 +2,7 @@
  * InstagramBentoGrid.tsx
  *
  * Self-contained bento grid for Instagram analytics.
- * Receives a raw InstagramSnapshotData object + VisibilityConfig and renders
- * all 10 Instagram metric cells: followers hero, reach chart, 7-day activity,
- * audience country + age/gender, per-post table, stories breakdown, image grid.
+ * All colours driven by CSS custom properties (--theme-*).
  */
 
 import { PlatformInfo, InstagramSnapshotData } from "@/lib/api";
@@ -15,8 +13,32 @@ import {
   BentoCard, StatLabel, StatValue, StatSub, VerifiedPill,
 } from "./bento-shared";
 
+// ─── shared CSS var shortcuts ─────────────────────────────────────────────────
+const textHi    = "var(--theme-text, #e2e8f0)";
+const textMd    = "var(--theme-text-muted, #94a3b8)";
+const textLo    = "var(--theme-text-faint, #475569)";
+const accent    = "var(--theme-accent, #7c3aed)";
+const accentAlt = "var(--theme-accent-alt, #ec4899)";
+
+// ─── chart badge ──────────────────────────────────────────────────────────────
+function ChartBadge({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span
+      className="text-[11px] px-2.5 py-1 font-medium"
+      style={{
+        borderRadius: "9999px",
+        background: `${color}18`,
+        border: `1px solid ${color}35`,
+        color,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Audience data parsers
+// Audience parsers
 // ─────────────────────────────────────────────────────────────────────────────
 
 function parseGenderAge(raw: Record<string, number>) {
@@ -25,7 +47,7 @@ function parseGenderAge(raw: Record<string, number>) {
   const brackets: { label: string; pct: number; gender: "M" | "F" }[] = [];
 
   for (const [key, val] of Object.entries(raw)) {
-    const pct   = val > 1 ? Math.round(val) : Math.round(val * 100);
+    const pct    = val > 1 ? Math.round(val) : Math.round(val * 100);
     const gender: "M" | "F" = key.startsWith("M.") ? "M" : "F";
     const ageRange = key.replace(/^[MF]\./, "");
     brackets.push({ label: `${gender} ${ageRange}`, pct, gender });
@@ -42,10 +64,9 @@ function parseGenderAge(raw: Record<string, number>) {
     donutSlices: brackets.slice(0, 6).map((b, i) => ({
       value: b.pct,
       label: b.label,
-      color:
-        b.gender === "M"
-          ? (["#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe"][Math.floor(i / 2)] ?? "#e0e7ff")
-          : (["#ec4899", "#f472b6", "#f9a8d4", "#fce7f3"][Math.floor(i / 2)] ?? "#fdf2f8"),
+      color: b.gender === "M"
+        ? (["#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe"][Math.floor(i / 2)] ?? "#e0e7ff")
+        : (["#ec4899", "#f472b6", "#f9a8d4", "#fce7f3"][Math.floor(i / 2)] ?? "#fdf2f8"),
     })),
   };
 }
@@ -71,21 +92,23 @@ export function InstagramBentoGrid({
   vis,
 }: {
   igPlatform: PlatformInfo;
-  igData: InstagramSnapshotData;
-  vis: VisibilityConfig;
+  igData:     InstagramSnapshotData;
+  vis:        VisibilityConfig;
 }) {
   const { account, posts, account_insights: ins } = igData;
 
-  const hasInsights    = !!ins;
-  const hasReach       = !!(ins?.reach_30d?.length);
-  const reach30dTotal  = hasReach ? ins!.reach_30d!.reduce((s, v) => s + v, 0) : 0;
-  const hasCountry     = !!(ins?.audience_country    && Object.keys(ins.audience_country).length    > 0);
-  const hasAgeGender   = !!(ins?.audience_gender_age && Object.keys(ins.audience_gender_age).length > 0);
-  const postsWithIns   = posts.filter(p => p.reach !== undefined);
+  const hasInsights     = !!ins;
+  const hasReach        = !!(ins?.reach_30d?.length);
+  const reach30dTotal   = hasReach ? ins!.reach_30d!.reduce((s, v) => s + v, 0) : 0;
+  const hasCountry      = !!(ins?.audience_country    && Object.keys(ins.audience_country).length    > 0);
+  const hasAgeGender    = !!(ins?.audience_gender_age && Object.keys(ins.audience_gender_age).length > 0);
+  const postsWithIns    = posts.filter(p => p.reach !== undefined);
   const hasPostInsights = postsWithIns.length > 0;
 
   const ga        = hasAgeGender ? parseGenderAge(ins!.audience_gender_age!) : null;
   const countries = hasCountry   ? parseTopCountries(ins!.audience_country!) : null;
+
+  const borderVar = "var(--theme-border, rgba(255,255,255,0.06))";
 
   return (
     <div className="space-y-5">
@@ -97,15 +120,16 @@ export function InstagramBentoGrid({
             <IconInstagram size={17} className="text-pink-400" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-200">@{account.username}</p>
-            <p className="text-xs text-slate-500">{account.name}</p>
+            <p className="text-sm font-bold" style={{ color: textHi }}>@{account.username}</p>
+            <p className="text-xs" style={{ color: textLo }}>{account.name}</p>
           </div>
         </div>
         <a
           href={`https://instagram.com/${account.username}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="flex items-center gap-1 text-xs transition-opacity hover:opacity-70"
+          style={{ color: textLo }}
         >
           <IconExternal size={11} /> View profile
         </a>
@@ -114,11 +138,7 @@ export function InstagramBentoGrid({
       {/* ── Row 1: Core stats ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {vis.ig_followers && (
-          <BentoCard
-            span="col-span-2"
-            glow="pink"
-            className="bg-gradient-to-br from-pink-500/10 via-transparent to-transparent border-pink-500/15"
-          >
+          <BentoCard span="col-span-2" glow="pink" accentTint="rgba(236,72,153,0.08)">
             <div className="flex items-start justify-between mb-3">
               <StatLabel>Followers</StatLabel>
               <IconUsers size={14} className="text-pink-400" />
@@ -151,21 +171,19 @@ export function InstagramBentoGrid({
           <div className="flex items-start justify-between mb-1">
             <div>
               <StatLabel>30-Day Reach</StatLabel>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs" style={{ color: textMd }}>
                 Daily unique accounts reached · last 30 days
               </p>
             </div>
             <div className="flex items-center gap-2">
               <VerifiedPill />
-              <span className="text-[11px] px-2.5 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 font-medium">
-                Daily bar chart
-              </span>
+              <ChartBadge color={accentAlt}>Daily bar chart</ChartBadge>
             </div>
           </div>
           <div className="mt-4">
-            <DailyBarChart data={ins!.reach_30d!} color="#ec4899" />
+            <DailyBarChart data={ins!.reach_30d!} color="var(--theme-accent-alt, #ec4899)" />
           </div>
-          <div className="flex justify-between text-[10px] text-slate-600 mt-1 px-0.5">
+          <div className="flex justify-between text-[10px] mt-1 px-0.5" style={{ color: textLo }}>
             <span>30 days ago</span>
             <span>Today</span>
           </div>
@@ -203,27 +221,23 @@ export function InstagramBentoGrid({
       {(hasCountry || hasAgeGender) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
-          {/* Country breakdown — horizontal bar chart */}
+          {/* Country breakdown */}
           {vis.ig_audience_country && countries && (
             <BentoCard>
               <div className="flex items-center justify-between mb-4">
                 <StatLabel>Audience Country</StatLabel>
-                <span className="text-[11px] px-2.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 font-medium">
-                  Horizontal bar
-                </span>
+                <ChartBadge color="#14b8a6">Horizontal bar</ChartBadge>
               </div>
-              <HorizontalBarChart items={countries} color="#14b8a6" />
+              <HorizontalBarChart items={countries} color="var(--theme-accent, #14b8a6)" />
             </BentoCard>
           )}
 
-          {/* Age / gender — donut + legend */}
+          {/* Age / gender */}
           {vis.ig_audience_age_gender && ga && (
             <BentoCard>
               <div className="flex items-center justify-between mb-3">
                 <StatLabel>Age &amp; Gender</StatLabel>
-                <span className="text-[11px] px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 font-medium">
-                  Donut chart
-                </span>
+                <ChartBadge color={accent}>Donut chart</ChartBadge>
               </div>
               <div className="flex items-center gap-5">
                 <div className="shrink-0">
@@ -236,7 +250,7 @@ export function InstagramBentoGrid({
                       <div className="bg-indigo-400" style={{ width: `${ga.male}%` }} />
                       <div className="bg-pink-400 flex-1" />
                     </div>
-                    <div className="flex gap-3 text-[11px] text-slate-400">
+                    <div className="flex gap-3 text-[11px]" style={{ color: textMd }}>
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />
                         M {ga.male}%
@@ -251,13 +265,13 @@ export function InstagramBentoGrid({
                   <div className="space-y-1.5">
                     {ga.brackets.slice(0, 4).map(b => (
                       <div key={b.label} className="flex items-center gap-2">
-                        <span
-                          className="text-[10px] text-slate-500 w-14 shrink-0"
-                          style={MONO}
-                        >
+                        <span className="text-[10px] w-14 shrink-0" style={{ ...MONO, color: textLo }}>
                           {b.label}
                         </span>
-                        <div className="flex-1 bg-white/[0.06] rounded-full h-1 overflow-hidden">
+                        <div
+                          className="flex-1 rounded-full h-1 overflow-hidden"
+                          style={{ background: "var(--theme-border, rgba(255,255,255,0.06))" }}
+                        >
                           <div
                             className="h-full rounded-full"
                             style={{
@@ -266,10 +280,7 @@ export function InstagramBentoGrid({
                             }}
                           />
                         </div>
-                        <span
-                          className="text-[10px] text-slate-500 w-7 text-right"
-                          style={MONO}
-                        >
+                        <span className="text-[10px] w-7 text-right" style={{ ...MONO, color: textLo }}>
                           {b.pct}%
                         </span>
                       </div>
@@ -286,14 +297,14 @@ export function InstagramBentoGrid({
       {vis.ig_post_feed && posts.length > 0 && (
         <BentoCard>
           <StatLabel>Post Feed</StatLabel>
-          <p className="text-xs text-slate-400 mb-4">
+          <p className="text-xs mb-4" style={{ color: textMd }}>
             Recent {Math.min(posts.length, 9)} posts
             {hasPostInsights ? " — API-verified per-post insights" : " — engagement data"}
           </p>
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-xs min-w-[540px]">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr style={{ borderBottom: `1px solid ${borderVar}` }}>
                   {[
                     "#", "Type", "Likes", "Comments",
                     ...(hasPostInsights
@@ -304,7 +315,8 @@ export function InstagramBentoGrid({
                   ].map(h => (
                     <th
                       key={h}
-                      className="text-left py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600"
+                      className="text-left py-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: textLo }}
                     >
                       {h}
                     </th>
@@ -315,9 +327,10 @@ export function InstagramBentoGrid({
                 {posts.slice(0, 9).map((p, i) => (
                   <tr
                     key={p.id}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                    className="transition-colors"
+                    style={{ borderBottom: `1px solid ${borderVar}` }}
                   >
-                    <td className="py-2.5 px-2 text-slate-500" style={MONO}>{i + 1}</td>
+                    <td className="py-2.5 px-2" style={{ ...MONO, color: textLo }}>{i + 1}</td>
                     <td className="py-2.5 px-2">
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -331,32 +344,32 @@ export function InstagramBentoGrid({
                         {p.media_type === "CAROUSEL_ALBUM" ? "ALBUM" : p.media_type}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2 text-slate-300 font-semibold" style={MONO}>
+                    <td className="py-2.5 px-2 font-semibold" style={{ ...MONO, color: textHi }}>
                       {fmtK(p.like_count)}
                     </td>
-                    <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                    <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                       {fmtK(p.comments_count)}
                     </td>
                     {hasPostInsights && (
                       <>
-                        <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                        <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                           {p.reach    !== undefined ? fmtK(p.reach)    : "—"}
                         </td>
-                        <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                        <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                           {p.saved    !== undefined ? fmtK(p.saved)    : "—"}
                         </td>
-                        <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                        <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                           {p.shares   !== undefined ? fmtK(p.shares)   : "—"}
                         </td>
-                        <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                        <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                           {p.follows  !== undefined ? fmtK(p.follows)  : "—"}
                         </td>
-                        <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                        <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                           {p.profile_visits !== undefined ? fmtK(p.profile_visits) : "—"}
                         </td>
                       </>
                     )}
-                    <td className="py-2.5 px-2 text-slate-500" style={MONO}>
+                    <td className="py-2.5 px-2" style={{ ...MONO, color: textLo }}>
                       {new Date(p.timestamp).toLocaleDateString("en-US", {
                         month: "short", day: "numeric",
                       })}
@@ -371,21 +384,21 @@ export function InstagramBentoGrid({
 
       {/* ── Row 6: Stories breakdown ── */}
       {vis.ig_stories && igData.stories && igData.stories.length > 0 && (() => {
-        const s              = igData.stories!;
-        const totalReach     = s.reduce((a, st) => a + (st.reach       ?? 0), 0);
-        const totalImpr      = s.reduce((a, st) => a + (st.impressions ?? 0), 0);
-        const totalExits     = s.reduce((a, st) => a + (st.exits       ?? 0), 0);
-        const totalReplies   = s.reduce((a, st) => a + (st.replies     ?? 0), 0);
-        const totalTapsFwd   = s.reduce((a, st) => a + (st.taps_forward ?? 0), 0);
-        const totalTapsBack  = s.reduce((a, st) => a + (st.taps_back   ?? 0), 0);
-        const exitRate       = totalImpr > 0
+        const s             = igData.stories!;
+        const totalReach    = s.reduce((a, st) => a + (st.reach        ?? 0), 0);
+        const totalImpr     = s.reduce((a, st) => a + (st.impressions  ?? 0), 0);
+        const totalExits    = s.reduce((a, st) => a + (st.exits        ?? 0), 0);
+        const totalReplies  = s.reduce((a, st) => a + (st.replies      ?? 0), 0);
+        const totalTapsFwd  = s.reduce((a, st) => a + (st.taps_forward ?? 0), 0);
+        const totalTapsBack = s.reduce((a, st) => a + (st.taps_back    ?? 0), 0);
+        const exitRate      = totalImpr > 0
           ? ((totalExits / totalImpr) * 100).toFixed(1)
           : null;
 
         return (
           <BentoCard>
             <StatLabel>Stories Breakdown</StatLabel>
-            <p className="text-xs text-slate-400 mb-4">
+            <p className="text-xs mb-4" style={{ color: textMd }}>
               Aggregated across {s.length} recent stories
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -399,12 +412,19 @@ export function InstagramBentoGrid({
               ].map(m => (
                 <div
                   key={m.label}
-                  className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]"
+                  className="rounded-xl p-3"
+                  style={{
+                    background: "var(--theme-surface, rgba(255,255,255,0.03))",
+                    border: `1px solid ${borderVar}`,
+                  }}
                 >
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-1">
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+                    style={{ color: textLo }}
+                  >
                     {m.label}
                   </p>
-                  <p className="text-lg font-bold text-slate-200" style={MONO}>
+                  <p className="text-lg font-bold" style={{ ...MONO, color: textHi }}>
                     {m.value}
                   </p>
                 </div>
@@ -418,7 +438,7 @@ export function InstagramBentoGrid({
       {posts.length > 0 && (
         <BentoCard>
           <StatLabel>Recent Posts</StatLabel>
-          <p className="text-xs text-slate-400 mb-4">
+          <p className="text-xs mb-4" style={{ color: textMd }}>
             Latest {Math.min(posts.length, 9)} · hover for metrics
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -428,7 +448,12 @@ export function InstagramBentoGrid({
               return (
                 <div
                   key={post.id}
-                  className="relative aspect-square rounded-xl overflow-hidden bg-white/[0.04] group border border-white/[0.06]"
+                  className="relative aspect-square overflow-hidden group"
+                  style={{
+                    borderRadius: "var(--theme-radius, 0.75rem)",
+                    border: `1px solid ${borderVar}`,
+                    background: "var(--theme-surface, rgba(255,255,255,0.04))",
+                  }}
                 >
                   {thumb ? (
                     <img

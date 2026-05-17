@@ -48,7 +48,10 @@ export interface VisibilityConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** JetBrains Mono — applied via CSS variable injected by page.tsx */
-export const MONO: React.CSSProperties = { fontFamily: "var(--font-jetbrains)" };
+export const MONO: React.CSSProperties = { fontFamily: "var(--theme-font-mono, var(--font-jetbrains), monospace)" };
+
+/** Display / hero font — Playfair or whatever the active typography preset sets */
+export const DISPLAY_STYLE: React.CSSProperties = { fontFamily: "var(--theme-font-display, var(--font-playfair), serif)" };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Number formatters
@@ -231,8 +234,8 @@ export function DonutChart({
       {paths.map((p, i) => (
         <path key={i} d={p.d} fill={p.color} opacity="0.85" />
       ))}
-      {/* Hollow centre matches page background */}
-      <circle cx={cx} cy={cy} r={ir - 1} fill="#0a0f1e" />
+      {/* Hollow centre — uses the page background CSS var so it works on all themes */}
+      <circle cx={cx} cy={cy} r={ir - 1} fill="var(--theme-bg, #0a0f1e)" />
     </svg>
   );
 }
@@ -241,35 +244,66 @@ export function DonutChart({
 // Card & stat primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Glass card — base primitive for every bento cell */
+/** Glass card — base primitive for every bento cell.
+ *  Reads CSS custom properties set by ThemeProvider so theming works
+ *  without any prop changes to the grid components. Fallback values
+ *  match the default Glassmorphic dark theme so SSR looks correct. */
 export function BentoCard({
   children,
   span,
   className = "",
   glow,
+  accentTint,
+  style: extraStyle,
 }: {
-  children: React.ReactNode;
-  span?: string;
-  className?: string;
-  glow?: "purple" | "pink" | "red" | "teal";
+  children:     React.ReactNode;
+  span?:        string;
+  className?:   string;
+  glow?:        "purple" | "pink" | "red" | "teal";
+  /** Semi-transparent tint overlay on the hero cards (e.g. "rgba(239,68,68,0.08)").
+   *  Rendered as an absolutely-positioned child div so it never conflicts with
+   *  the theme's --theme-surface gradient. */
+  accentTint?:  string;
+  style?:       React.CSSProperties;
 }) {
-  const glowMap = {
-    purple: "shadow-[0_0_40px_-12px_rgba(124,58,237,0.35)]",
-    pink:   "shadow-[0_0_40px_-12px_rgba(236,72,153,0.35)]",
-    red:    "shadow-[0_0_40px_-12px_rgba(239,68,68,0.3)]",
-    teal:   "shadow-[0_0_40px_-12px_rgba(20,184,166,0.3)]",
+  // Glow colours are theme-independent accent shadows
+  const glowMap: Record<string, string> = {
+    purple: "0 0 40px -12px rgba(124,58,237,0.35)",
+    pink:   "0 0 40px -12px rgba(236,72,153,0.35)",
+    red:    "0 0 40px -12px rgba(239,68,68,0.3)",
+    teal:   "0 0 40px -12px rgba(20,184,166,0.3)",
   };
+
+  const cardStyle: React.CSSProperties = {
+    position:        "relative",
+    borderRadius:    "var(--theme-radius, 1rem)",
+    borderWidth:     "var(--theme-card-border-width, 1px)",
+    borderStyle:     "var(--theme-card-border-style, solid)",
+    borderColor:     "var(--theme-border, rgba(255,255,255,0.08))",
+    background:      "linear-gradient(135deg, var(--theme-surface, rgba(255,255,255,0.05)) 0%, var(--theme-surface-end, rgba(255,255,255,0.02)) 100%)",
+    backdropFilter:  "blur(var(--theme-blur, 8px))",
+    overflow:        "hidden",
+    boxShadow:       glow
+      ? `${glowMap[glow]}, var(--theme-card-shadow, none)`
+      : "var(--theme-card-shadow, none)",
+    ...extraStyle,
+  };
+
   return (
     <div
-      className={[
-        "rounded-2xl border border-white/[0.08]",
-        "bg-gradient-to-br from-white/[0.05] to-white/[0.02]",
-        "backdrop-blur-sm p-5 flex flex-col",
-        glow ? glowMap[glow] : "",
-        span ?? "",
-        className,
-      ].join(" ")}
+      className={["p-5 flex flex-col", span ?? "", className].join(" ")}
+      style={cardStyle}
     >
+      {/* Additive tint overlay for hero cards — sits behind content */}
+      {accentTint && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            background: `linear-gradient(135deg, ${accentTint} 0%, transparent 60%)`,
+          }}
+        />
+      )}
       {children}
     </div>
   );
@@ -278,7 +312,10 @@ export function BentoCard({
 /** Tiny all-caps label above a stat */
 export function StatLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">
+    <p
+      className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+      style={{ color: "var(--theme-text-faint, #475569)" }}
+    >
       {children}
     </p>
   );
@@ -292,11 +329,14 @@ export function StatValue({
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
 }) {
-  const sizes = {
+  const sizes: Record<string, string> = {
     sm: "text-base", md: "text-xl", lg: "text-2xl", xl: "text-3xl", "2xl": "text-4xl",
   };
   return (
-    <p className={`${sizes[size]} font-bold text-slate-100 leading-none`} style={MONO}>
+    <p
+      className={`${sizes[size]} font-bold leading-none`}
+      style={{ ...MONO, color: "var(--theme-text, #e2e8f0)" }}
+    >
       {children}
     </p>
   );
@@ -304,7 +344,11 @@ export function StatValue({
 
 /** Muted sub-line below a stat value */
 export function StatSub({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-slate-500 mt-1">{children}</p>;
+  return (
+    <p className="text-[11px] mt-1" style={{ color: "var(--theme-text-faint, #475569)" }}>
+      {children}
+    </p>
+  );
 }
 
 /** Green "Verified" pill badge */

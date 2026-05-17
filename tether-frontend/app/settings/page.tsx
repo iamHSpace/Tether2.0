@@ -5,7 +5,13 @@ import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import { IconSave, IconUser, IconLink, IconBell, IconShield, IconTrash, IconAlert, IconCheck, IconCode, IconKey, IconCopy } from "@/components/ui/Icons";
-import type { ApiKey, UserSubscription, SubscriptionPlan } from "@/lib/api";
+import type { ApiKey, UserSubscription, SubscriptionPlan, ProfileThemeConfig } from "@/lib/api";
+import {
+  THEME_META, TYPOGRAPHY_META, PALETTE_META, TEXTURE_META, LAYOUT_META,
+  DEFAULT_THEME,
+  type ThemePreset, type TypographyPreset, type PalettePreset,
+  type TexturePreset, type LayoutPreset, type ThemeConfig,
+} from "@/app/[handle]/_components/theme-context";
 
 const CREATOR_CATEGORIES = [
   "Gaming", "Tech & Science", "Education", "Lifestyle", "Vlog",
@@ -26,7 +32,7 @@ interface SettingsProfile {
   category: string;
 }
 
-type Tab = "profile" | "connections" | "notifications" | "account" | "developer" | "subscription";
+type Tab = "profile" | "connections" | "notifications" | "account" | "developer" | "subscription" | "appearance";
 
 function IconCreditCard({ size = 16 }: { size?: number }) {
   return (
@@ -37,8 +43,21 @@ function IconCreditCard({ size = 16 }: { size?: number }) {
   );
 }
 
+function IconPalette({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="15.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="8.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="15.5" cy="15.5" r="1.5" fill="currentColor" stroke="none"/>
+    </svg>
+  );
+}
+
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "profile",       label: "Profile",       icon: IconUser        },
+  { id: "appearance",    label: "Appearance",    icon: IconPalette     },
   { id: "connections",   label: "Connections",   icon: IconLink        },
   { id: "notifications", label: "Notifications", icon: IconBell        },
   { id: "account",       label: "Account",       icon: IconShield      },
@@ -67,6 +86,11 @@ export default function SettingsPage() {
   const [subLoading, setSubLoading]     = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [portalLoading, setPortalLoading]     = useState(false);
+
+  // Appearance tab state
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>(DEFAULT_THEME);
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [themeSaved,  setThemeSaved]  = useState(false);
 
   // Connections tab — Instagram state
   const [igStatus, setIgStatus]       = useState<"loading" | "connected" | "disconnected" | "expired">("loading");
@@ -105,6 +129,15 @@ export default function SettingsPage() {
         setSavedUsername(u);
         if (u) setUsernameStatus("available");
         if (prof.user_type === "business") setUserType("business");
+        if (prof.theme_config) {
+          setThemeConfig({
+            theme:      (prof.theme_config.theme      as ThemePreset)      ?? DEFAULT_THEME.theme,
+            typography: (prof.theme_config.typography as TypographyPreset) ?? DEFAULT_THEME.typography,
+            palette:    (prof.theme_config.palette    as PalettePreset)    ?? DEFAULT_THEME.palette,
+            texture:    (prof.theme_config.texture    as TexturePreset)    ?? DEFAULT_THEME.texture,
+            layout:     (prof.theme_config.layout     as LayoutPreset)     ?? DEFAULT_THEME.layout,
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(
@@ -693,6 +726,205 @@ export default function SettingsPage() {
                 <div className="flex gap-3">
                   <a href="/pricing" className="text-sm font-medium text-brand-600 hover:underline">View pricing →</a>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Appearance tab ── */}
+          {tab === "appearance" && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="card p-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-brand-600 shrink-0 mt-0.5"><IconPalette size={18} /></span>
+                  <div>
+                    <h2 className="font-semibold text-gray-900 mb-1">Profile Appearance</h2>
+                    <p className="text-sm text-gray-500">
+                      Choose how your public profile page looks to visitors. Changes are reflected on{" "}
+                      <a
+                        href={`/@${profile.username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-600 hover:underline font-medium"
+                      >
+                        statvora.in/@{profile.username}
+                      </a>
+                      {" "}after saving.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Global Theme */}
+              <div className="card p-6 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Global Theme</h3>
+                  <p className="text-xs text-gray-500 mb-3">{THEME_META[themeConfig.theme].desc}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(["glassmorphic", "editorial", "brutalist", "arcade"] as ThemePreset[]).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setThemeConfig(c => ({ ...c, theme: t }))}
+                        className={`flex flex-col items-start gap-2 p-3 rounded-xl border-2 text-left transition-all ${
+                          themeConfig.theme === t
+                            ? "border-brand-500 bg-brand-50"
+                            : "border-gray-200 hover:border-gray-300 bg-white"
+                        }`}
+                      >
+                        <div className={`w-full h-8 rounded-lg bg-gradient-to-br ${THEME_META[t].swatch} border border-gray-200`} />
+                        <span className={`text-xs font-semibold ${themeConfig.theme === t ? "text-brand-700" : "text-gray-700"}`}>
+                          {THEME_META[t].label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Typography */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Typography</h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    {TYPOGRAPHY_META[themeConfig.typography].display} · {TYPOGRAPHY_META[themeConfig.typography].body} · {TYPOGRAPHY_META[themeConfig.typography].mono}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["minimalist", "sophisticate", "retrotech", "heavyweight"] as TypographyPreset[]).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setThemeConfig(c => ({ ...c, typography: t }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          themeConfig.typography === t
+                            ? "border-brand-500 bg-brand-50 text-brand-700"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        {TYPOGRAPHY_META[t].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Colour Palette */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Colour Palette</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {(["deepspace", "alabaster", "monochrome"] as PalettePreset[]).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setThemeConfig(c => ({ ...c, palette: p }))}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          themeConfig.palette === p
+                            ? "border-brand-500 bg-brand-50 text-brand-700"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full border border-gray-300 inline-block shrink-0"
+                          style={{ background: PALETTE_META[p].swatch }}
+                        />
+                        {PALETTE_META[p].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Background Texture */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Background Texture</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {(["none", "dots", "graph", "mesh"] as TexturePreset[]).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setThemeConfig(c => ({ ...c, texture: t }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          themeConfig.texture === t
+                            ? "border-brand-500 bg-brand-50 text-brand-700"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        {TEXTURE_META[t].icon} {TEXTURE_META[t].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Layout */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Layout</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(["asymmetric", "split"] as LayoutPreset[]).map(l => (
+                      <button
+                        key={l}
+                        onClick={() => setThemeConfig(c => ({ ...c, layout: l }))}
+                        className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          themeConfig.layout === l
+                            ? "border-brand-500 bg-brand-50"
+                            : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
+                      >
+                        <div className="shrink-0 opacity-60">
+                          {l === "asymmetric" ? (
+                            <svg width="40" height="28" viewBox="0 0 40 28" fill="none">
+                              <rect x="1" y="1" width="38" height="10" rx="2" fill={themeConfig.layout === l ? "#6366f1" : "#d1d5db"} />
+                              <rect x="1" y="14" width="18" height="13" rx="2" fill={themeConfig.layout === l ? "#818cf8" : "#e5e7eb"} />
+                              <rect x="21" y="14" width="18" height="5" rx="2" fill={themeConfig.layout === l ? "#a5b4fc" : "#f3f4f6"} />
+                              <rect x="21" y="21" width="18" height="6" rx="2" fill={themeConfig.layout === l ? "#c7d2fe" : "#f9fafb"} />
+                            </svg>
+                          ) : (
+                            <svg width="40" height="28" viewBox="0 0 40 28" fill="none">
+                              <rect x="1" y="1" width="14" height="26" rx="2" fill={themeConfig.layout === l ? "#6366f1" : "#d1d5db"} />
+                              <rect x="17" y="1" width="22" height="12" rx="2" fill={themeConfig.layout === l ? "#818cf8" : "#e5e7eb"} />
+                              <rect x="17" y="15" width="22" height="12" rx="2" fill={themeConfig.layout === l ? "#a5b4fc" : "#f3f4f6"} />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className={`text-xs font-semibold ${themeConfig.layout === l ? "text-brand-700" : "text-gray-700"}`}>
+                            {LAYOUT_META[l].label}
+                          </p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{LAYOUT_META[l].desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setThemeSaving(true);
+                    try {
+                      await api.profile.update({ theme_config: themeConfig as unknown as import("@/lib/api").ProfileThemeConfig });
+                      setThemeSaved(true);
+                      setTimeout(() => setThemeSaved(false), 3000);
+                    } catch {
+                      /* silently fail for now */
+                    } finally {
+                      setThemeSaving(false);
+                    }
+                  }}
+                  disabled={themeSaving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-all"
+                >
+                  {themeSaving ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <IconSave size={15} />
+                  )}
+                  {themeSaving ? "Saving…" : "Save Appearance"}
+                </button>
+                {themeSaved && (
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-green-600">
+                    <IconCheck size={14} /> Saved — live on your profile
+                  </span>
+                )}
+                <button
+                  onClick={() => setThemeConfig(DEFAULT_THEME)}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Reset to default
+                </button>
               </div>
             </div>
           )}

@@ -22,7 +22,7 @@ export async function GET(
   // ── 1. Look up the profile by username ───────────────────────────────────
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("id, username, full_name, bio, website, avatar_url, creator_stage, aspiration, metric_visibility, category, updated_at")
+    .select("id, username, full_name, bio, website, avatar_url, creator_stage, aspiration, metric_visibility, category, theme_config, updated_at")
     .eq("username", username.toLowerCase())
     .maybeSingle();
 

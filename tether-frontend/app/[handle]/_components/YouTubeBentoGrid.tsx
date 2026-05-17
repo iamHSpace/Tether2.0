@@ -2,9 +2,8 @@
  * YouTubeBentoGrid.tsx
  *
  * Self-contained bento grid for YouTube analytics.
- * Receives a raw SnapshotData object + VisibilityConfig and renders
- * all 12 YouTube metric cells: subscribers hero, totals, derived metrics,
- * views-by-video area chart, recency-decay chart, and the per-video table.
+ * All colours are driven by CSS custom properties (--theme-*) so every
+ * combination of Global Theme × Typography × Palette renders correctly.
  */
 
 import { PlatformInfo, SnapshotData } from "@/lib/api";
@@ -13,6 +12,33 @@ import {
   VisibilityConfig, MONO, fmtK,
   DarkAreaChart, BentoCard, StatLabel, StatValue, StatSub,
 } from "./bento-shared";
+
+// ─── unit suffix helper ───────────────────────────────────────────────────────
+// Replaces hardcoded text-slate-500 with a CSS-var-driven colour
+function Unit({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-base ml-1" style={{ color: "var(--theme-text-faint, #475569)" }}>
+      {children}
+    </span>
+  );
+}
+
+// ─── chart badge helper ───────────────────────────────────────────────────────
+function ChartBadge({ children, accent }: { children: React.ReactNode; accent: string }) {
+  return (
+    <span
+      className="text-[11px] px-2.5 py-1 font-medium"
+      style={{
+        borderRadius: "9999px",
+        background: `${accent}18`,
+        border: `1px solid ${accent}35`,
+        color: accent,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Analytics — derives all computed metrics from the raw snapshot
@@ -34,10 +60,10 @@ function computeYtAnalytics(ytData: SnapshotData) {
         )
       : 0;
 
-  const uploadVelocity = sorted.length > 1 ? accountAgeDays / (sorted.length - 1) : 0;
-  const knownViews = videos.reduce((s, v) => s + v.views, 0);
-  const ghostViews = Math.max(0, ch.totalViews - knownViews);
-  const subToViewRatio = ch.subscribers > 0 ? ch.totalViews / ch.subscribers : 0;
+  const uploadVelocity  = sorted.length > 1 ? accountAgeDays / (sorted.length - 1) : 0;
+  const knownViews      = videos.reduce((s, v) => s + v.views, 0);
+  const ghostViews      = Math.max(0, ch.totalViews - knownViews);
+  const subToViewRatio  = ch.subscribers > 0 ? ch.totalViews / ch.subscribers : 0;
 
   const avgEngagement =
     videos.length > 0
@@ -47,7 +73,7 @@ function computeYtAnalytics(ytData: SnapshotData) {
         ) / videos.length
       : 0;
 
-  const viewsChartData = sorted.map(v => v.views);
+  const viewsChartData  = sorted.map(v => v.views);
   const recencyDecayData = [...sorted].reverse().slice(0, 6).map(v => v.views);
 
   return {
@@ -67,12 +93,18 @@ export function YouTubeBentoGrid({
   vis,
 }: {
   ytPlatform: PlatformInfo;
-  ytData: SnapshotData;
-  vis: VisibilityConfig;
+  ytData:     SnapshotData;
+  vis:        VisibilityConfig;
 }) {
-  const ch = ytData.channel;
-  const analytics = computeYtAnalytics(ytData);
+  const ch              = ytData.channel;
+  const analytics       = computeYtAnalytics(ytData);
   const avgViewsPerVideo = ch.videoCount > 0 ? Math.round(ch.totalViews / ch.videoCount) : 0;
+
+  const textHi    = "var(--theme-text, #e2e8f0)";
+  const textMd    = "var(--theme-text-muted, #94a3b8)";
+  const textLo    = "var(--theme-text-faint, #475569)";
+  const accent    = "var(--theme-accent, #7c3aed)";
+  const accentAlt = "var(--theme-accent-alt, #ec4899)";
 
   return (
     <div className="space-y-5">
@@ -84,9 +116,11 @@ export function YouTubeBentoGrid({
             <IconYoutube size={17} className="text-red-400" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-200">{ytPlatform.platform_username}</p>
+            <p className="text-sm font-bold" style={{ color: textHi }}>
+              {ytPlatform.platform_username}
+            </p>
             {ch.handle && (
-              <p className="text-xs text-slate-500" style={MONO}>{ch.handle}</p>
+              <p className="text-xs" style={{ ...MONO, color: textLo }}>{ch.handle}</p>
             )}
           </div>
         </div>
@@ -94,7 +128,8 @@ export function YouTubeBentoGrid({
           href={`https://youtube.com/channel/${ytPlatform.platform_user_id}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="flex items-center gap-1 text-xs transition-opacity hover:opacity-70"
+          style={{ color: textLo }}
         >
           <IconExternal size={11} /> View channel
         </a>
@@ -103,11 +138,7 @@ export function YouTubeBentoGrid({
       {/* ── Row 1: Hero stats ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {vis.yt_subscribers && (
-          <BentoCard
-            span="col-span-2"
-            glow="red"
-            className="bg-gradient-to-br from-red-500/10 via-transparent to-transparent border-red-500/15"
-          >
+          <BentoCard span="col-span-2" glow="red" accentTint="rgba(239,68,68,0.08)">
             <div className="flex items-start justify-between mb-3">
               <StatLabel>Subscribers</StatLabel>
               <IconUsers size={14} className="text-red-400" />
@@ -150,7 +181,7 @@ export function YouTubeBentoGrid({
               <StatLabel>Content Span</StatLabel>
               <StatValue size="lg">
                 {analytics.accountAgeDays.toLocaleString()}
-                <span className="text-base text-slate-500 ml-1">d</span>
+                <Unit>d</Unit>
               </StatValue>
               <StatSub>days since first upload</StatSub>
             </BentoCard>
@@ -161,7 +192,7 @@ export function YouTubeBentoGrid({
               <StatLabel>Sub-to-View Ratio</StatLabel>
               <StatValue size="lg">
                 {(Math.round(analytics.subToViewRatio * 10) / 10).toFixed(1)}
-                <span className="text-base text-slate-500 ml-1">×</span>
+                <Unit>×</Unit>
               </StatValue>
               <StatSub>views per subscriber</StatSub>
             </BentoCard>
@@ -185,7 +216,7 @@ export function YouTubeBentoGrid({
               <StatLabel>Upload Velocity</StatLabel>
               <StatValue size="lg">
                 {(Math.round(analytics.uploadVelocity * 10) / 10).toFixed(1)}
-                <span className="text-base text-slate-500 ml-1">d</span>
+                <Unit>d</Unit>
               </StatValue>
               <StatSub>avg days between uploads</StatSub>
             </BentoCard>
@@ -196,7 +227,7 @@ export function YouTubeBentoGrid({
               <StatLabel>Avg Engagement</StatLabel>
               <StatValue size="lg">
                 {analytics.avgEngagement.toFixed(2)}
-                <span className="text-base text-slate-500 ml-1">%</span>
+                <Unit>%</Unit>
               </StatValue>
               <StatSub>(likes + comments) / views</StatSub>
             </BentoCard>
@@ -210,16 +241,16 @@ export function YouTubeBentoGrid({
           <div className="flex items-start justify-between mb-1">
             <div>
               <StatLabel>Views by Video</StatLabel>
-              <p className="text-xs text-slate-400">Oldest → newest · {ytData.videos.length} videos</p>
+              <p className="text-xs" style={{ color: textMd }}>
+                Oldest → newest · {ytData.videos.length} videos
+              </p>
             </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 font-medium">
-              Area chart
-            </span>
+            <ChartBadge accent={accent}>Area chart</ChartBadge>
           </div>
           <div className="mt-4">
             <DarkAreaChart
               data={analytics.viewsChartData}
-              color="#7c3aed"
+              color="var(--theme-accent, #7c3aed)"
               gradientId="yt-views"
             />
           </div>
@@ -232,16 +263,16 @@ export function YouTubeBentoGrid({
           <div className="flex items-start justify-between mb-1">
             <div>
               <StatLabel>Recency Decay</StatLabel>
-              <p className="text-xs text-slate-400">Views on last 6 uploads (newest first)</p>
+              <p className="text-xs" style={{ color: textMd }}>
+                Views on last 6 uploads (newest first)
+              </p>
             </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium">
-              Area chart
-            </span>
+            <ChartBadge accent={accentAlt}>Area chart</ChartBadge>
           </div>
           <div className="mt-4">
             <DarkAreaChart
               data={analytics.recencyDecayData}
-              color="#f59e0b"
+              color="var(--theme-accent-alt, #f59e0b)"
               gradientId="yt-decay"
             />
           </div>
@@ -252,17 +283,18 @@ export function YouTubeBentoGrid({
       {vis.yt_video_feed && ytData.videos.length > 0 && (
         <BentoCard>
           <StatLabel>Video Feed</StatLabel>
-          <p className="text-xs text-slate-400 mb-4">
+          <p className="text-xs mb-4" style={{ color: textMd }}>
             Most recent {Math.min(ytData.videos.length, 8)} uploads
           </p>
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-xs min-w-[480px]">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr style={{ borderBottom: "1px solid var(--theme-border, rgba(255,255,255,0.06))" }}>
                   {["Title", "Views", "Likes", "Comments", "Published"].map(h => (
                     <th
                       key={h}
-                      className="text-left py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600"
+                      className="text-left py-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: textLo }}
                     >
                       {h}
                     </th>
@@ -276,21 +308,27 @@ export function YouTubeBentoGrid({
                   .map((v, i) => (
                     <tr
                       key={v.id}
-                      className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}
+                      className="transition-colors"
+                      style={{
+                        borderBottom: "1px solid var(--theme-border, rgba(255,255,255,0.04))",
+                        background: i % 2 !== 0
+                          ? "var(--theme-surface, rgba(255,255,255,0.01))"
+                          : "transparent",
+                      }}
                     >
-                      <td className="py-2.5 px-2 text-slate-300 max-w-[200px] truncate">
+                      <td className="py-2.5 px-2 max-w-[200px] truncate" style={{ color: textHi }}>
                         {v.title ?? "—"}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-300 font-semibold" style={MONO}>
+                      <td className="py-2.5 px-2 font-semibold" style={{ ...MONO, color: textHi }}>
                         {fmtK(v.views)}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                      <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                         {fmtK(v.likes)}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-400" style={MONO}>
+                      <td className="py-2.5 px-2" style={{ ...MONO, color: textMd }}>
                         {fmtK(v.comments)}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-500" style={MONO}>
+                      <td className="py-2.5 px-2" style={{ ...MONO, color: textLo }}>
                         {new Date(v.publishedAt).toLocaleDateString("en-US", {
                           month: "short", day: "numeric", year: "2-digit",
                         })}
