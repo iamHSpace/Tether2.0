@@ -302,16 +302,21 @@ async function fetchPostInsights(
  */
 async function fetchPeriodInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
   try {
+    // Use 28-day window — same proven endpoint, extended range
     const until = Math.floor(Date.now() / 1000);
-    const since = until - 7 * 24 * 3600;
+    const since = until - 28 * 24 * 3600;
     const metrics = "website_clicks,profile_views,reach,impressions";
     const res = await fetch(
       `${cfg.apiBase}/me/insights?metric=${metrics}&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
       { cache: "no-store" },
     );
-    if (!res.ok) return {};
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[ig:period]", res.status, JSON.stringify(err).substring(0, 200));
+      return {};
+    }
     const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return {};
+    if (!data.data) { console.warn("[ig:period] no data field in response"); return {}; }
 
     const getSum = (name: string): number | undefined => {
       const m = data.data!.find(d => d.name === name);
@@ -319,11 +324,20 @@ async function fetchPeriodInsights(accessToken: string): Promise<Partial<Instagr
       return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
     };
 
+    const getValues = (name: string): number[] | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.map(v => v.value ?? 0);
+    };
+
     return {
-      website_clicks:       getSum("website_clicks"),
-      profile_views:        getSum("profile_views"),
-      account_reach:        getSum("reach"),
-      account_impressions:  getSum("impressions"),
+      website_clicks:      getSum("website_clicks"),
+      profile_views:       getSum("profile_views"),
+      account_reach:       getSum("reach"),
+      account_impressions: getSum("impressions"),
+      // Per-day arrays for the Reach & Growth chart
+      reach_30d:           getValues("reach"),
+      impressions_30d:     getValues("impressions"),
     };
   } catch {
     return {};
@@ -341,9 +355,13 @@ async function fetchAudienceInsights(accessToken: string): Promise<Partial<Insta
       `${cfg.apiBase}/me/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
       { cache: "no-store" },
     );
-    if (!res.ok) return {};
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[ig:audience]", res.status, JSON.stringify(err).substring(0, 200));
+      return {};
+    }
     const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return {};
+    if (!data.data) { console.warn("[ig:audience] no data field in response"); return {}; }
 
     const getObj = (name: string): Record<string, number> | undefined => {
       const m = data.data!.find(d => d.name === name);
@@ -377,41 +395,6 @@ export async function getInstagramAccountInsights(
     ...(period.status   === "fulfilled" ? period.value   : {}),
     ...(audience.status === "fulfilled" ? audience.value : {}),
   };
-}
-
-/**
- * Fetches 30 days of daily reach + impressions via /me/insights.
- * Uses the same proven endpoint as fetchPeriodInsights but with a 30-day window
- * and returns the per-day arrays instead of summing.
- * Returns arrays of numbers (oldest→newest).  Never throws.
- */
-export async function getAccountInsights30d(
-  accessToken: string,
-): Promise<Pick<InstagramAccountInsights, "reach_30d" | "impressions_30d">> {
-  try {
-    const until = Math.floor(Date.now() / 1000);
-    const since = until - 30 * 24 * 3600;
-    const res = await fetch(
-      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) return {};
-    const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return {};
-
-    const getValues = (name: string): number[] | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      if (!m?.values?.length) return undefined;
-      return m.values.map(v => v.value ?? 0);
-    };
-
-    return {
-      reach_30d:       getValues("reach"),
-      impressions_30d: getValues("impressions"),
-    };
-  } catch {
-    return {};
-  }
 }
 
 /**

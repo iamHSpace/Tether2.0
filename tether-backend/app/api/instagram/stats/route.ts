@@ -5,7 +5,6 @@ import {
   getInstagramAccount,
   getInstagramMedia,
   getInstagramAccountInsights,
-  getAccountInsights30d,
   getStoriesInsights,
 } from "@/lib/instagram";
 import { decrypt } from "@/lib/encryption";
@@ -67,13 +66,11 @@ export async function GET(req: NextRequest) {
       accountResult,
       postsResult,
       accountInsightsResult,
-      insights30dResult,
       storiesResult,
     ] = await Promise.allSettled([
       getInstagramAccount(accessToken),
       getInstagramMedia(accessToken, igUserId),
       getInstagramAccountInsights(accessToken),
-      getAccountInsights30d(accessToken),
       getStoriesInsights(accessToken),
     ]);
 
@@ -81,21 +78,17 @@ export async function GET(req: NextRequest) {
     if (accountResult.status === "rejected") throw accountResult.reason;
     const account = accountResult.value;
 
-    const posts           = postsResult.status           === "fulfilled" ? postsResult.value  : [];
-    const accountInsights = accountInsightsResult.status === "fulfilled" ? accountInsightsResult.value : {};
-    const insights30d     = insights30dResult.status     === "fulfilled" ? insights30dResult.value     : {};
-    const stories         = storiesResult.status         === "fulfilled" ? storiesResult.value         : [];
-
-    // Merge 30-day time series into account insights object
-    const mergedInsights = { ...accountInsights, ...insights30d };
+    const posts           = postsResult.status           === "fulfilled" ? postsResult.value           : [];
+    const mergedInsights  = accountInsightsResult.status === "fulfilled" ? accountInsightsResult.value  : {};
+    const stories         = storiesResult.status         === "fulfilled" ? storiesResult.value          : [];
 
     // Derive online_followers_by_hour and audience from the already-working
-    // accountInsights (fetched via /me/insights — no extra API call needed)
-    const onlineHours = accountInsights.online_followers ?? null;
-    const audience = (accountInsights.audience_gender_age || accountInsights.audience_country)
+    // mergedInsights (fetched via /me/insights — no extra API call needed)
+    const onlineHours = mergedInsights.online_followers ?? null;
+    const audience = (mergedInsights.audience_gender_age || mergedInsights.audience_country)
       ? {
-          gender_age: accountInsights.audience_gender_age,
-          country:    accountInsights.audience_country,
+          gender_age: mergedInsights.audience_gender_age,
+          country:    mergedInsights.audience_country,
         }
       : null;
 
