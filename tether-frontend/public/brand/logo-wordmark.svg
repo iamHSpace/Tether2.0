@@ -1,12 +1,11 @@
-<!--
-  STATVORA WORDMARK (logo + text combined)
-  =========================================
-  Replace this file with your final horizontal wordmark.
-  Used in: OG image, email templates, any wide-format branding slot.
-
-  Current placeholder: text-only wordmark
--->
-<svg width="160" height="32" viewBox="0 0 160 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <text x="0" y="24" font-family="sans-serif" font-weight="700" font-size="22"
-    letter-spacing="-0.5" fill="#1f1f2e">Statvora</text>
+<svg viewBox="0 0 480 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Icon -->
+  <circle cx="50" cy="50" r="50" fill="#6B20E8"/>
+  <path d="M50 0 A50 50 0 0 0 50 100 C18 93 8 73 8 50 C8 27 18 7 50 0Z" fill="#4A0EBF" opacity="0.42"/>
+  <path d="M21 76 C21 42 24 22 30 22 C36 22 39 42 39 76Z" fill="white" opacity="0.80"/>
+  <path d="M37 76 C37 36 41 14 47 14 C53 14 57 36 57 76Z" fill="white"/>
+  <path d="M53 76 C53 42 57 22 63 22 C69 22 72 42 72 76Z" fill="white" opacity="0.90"/>
+  <!-- Wordmark text -->
+  <text x="118" y="70" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif"
+        font-size="54" font-weight="800" fill="#6B20E8" letter-spacing="-1">STATVORA</text>
 </svg>
