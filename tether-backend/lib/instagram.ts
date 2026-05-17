@@ -175,7 +175,7 @@ export async function getInstagramAccount(accessToken: string): Promise<Instagra
 
 export interface InstagramPost {
   id:            string;
-  media_type:    "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_type:    "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REEL";
   media_url:     string;
   thumbnail_url?: string;
   caption?:      string;
@@ -190,6 +190,8 @@ export interface InstagramPost {
   saved?:               number;
   shares?:              number;
   video_views?:         number;   // VIDEO only
+  plays?:               number;   // REEL only
+  avg_watch_time?:      number;   // REEL only (seconds)
   follows?:             number;   // follows sourced from this post
   profile_visits?:      number;   // profile visits sourced from this post
   total_interactions?:  number;   // likes + comments + saves + shares (API-computed)
@@ -213,6 +215,30 @@ export interface InstagramAccountInsights {
   audience_country?:    Record<string, number>;  // "IN" → 0.65
   audience_city?:       Record<string, number>;  // "Mumbai" → 0.12
   online_followers?:    Record<string, number>;  // "0"–"23" → follower count (absolute)
+
+  // 30-day daily time series (one number per day, oldest→newest)
+  reach_30d?:       number[];
+  impressions_30d?: number[];
+}
+
+/** Richer audience demographics fetched via /{id}/insights (includes locale). */
+export interface InstagramAudience {
+  gender_age?: Record<string, number>;  // "M.25-34" → fraction
+  country?:    Record<string, number>;  // "IN" → fraction
+  locale?:     Record<string, number>;  // "en_US" → fraction
+}
+
+/** A single Instagram Story with optional engagement metrics. */
+export interface InstagramStory {
+  id:           string;
+  media_url?:   string;
+  timestamp:    string;
+  reach?:       number;
+  impressions?: number;
+  exits?:       number;
+  replies?:     number;
+  taps_forward?: number;
+  taps_back?:   number;
 }
 
 // ── Per-post insights ─────────────────────────────────────────────────────────
@@ -226,17 +252,19 @@ interface InsightMetric {
  * Fetches lifetime insights for a single media object.
  * Silently returns {} on any error — never throws.
  *
- * video_views is requested only for VIDEO posts; requesting it for other
- * types causes an API error which would wipe out all metrics for that post.
+ * video_views is requested only for VIDEO posts; plays + avg_watch_time for
+ * REEL posts.  Requesting these on unsupported types causes API errors.
  */
 async function fetchPostInsights(
   postId:      string,
-  mediaType:   "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM",
+  mediaType:   "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REEL",
   accessToken: string,
 ): Promise<Partial<InstagramPost>> {
   try {
     const base = "reach,impressions,saved,shares,follows,profile_visits,total_interactions";
-    const metrics = mediaType === "VIDEO" ? `${base},video_views` : base;
+    let metrics = base;
+    if (mediaType === "VIDEO") metrics = `${base},video_views`;
+    if (mediaType === "REEL")  metrics = `${base},plays,ig_reels_avg_watch_time`;
 
     const res = await fetch(
       `${cfg.apiBase}/${postId}/insights?metric=${metrics}&access_token=${accessToken}`,
@@ -258,6 +286,7 @@ async function fetchPostInsights(
       profile_visits:     getValue("profile_visits"),
       total_interactions: getValue("total_interactions"),
       ...(mediaType === "VIDEO" ? { video_views: getValue("video_views") } : {}),
+      ...(mediaType === "REEL"  ? { plays: getValue("plays"), avg_watch_time: getValue("ig_reels_avg_watch_time") } : {}),
     };
   } catch {
     return {};
@@ -348,6 +377,156 @@ export async function getInstagramAccountInsights(
     ...(period.status   === "fulfilled" ? period.value   : {}),
     ...(audience.status === "fulfilled" ? audience.value : {}),
   };
+}
+
+/**
+ * Fetches 30 days of daily reach + impressions via /{igUserId}/insights.
+ * Returns arrays of numbers (oldest→newest).  Never throws.
+ */
+export async function getAccountInsights30d(
+  accessToken: string,
+  igUserId:    string,
+): Promise<Pick<InstagramAccountInsights, "reach_30d" | "impressions_30d">> {
+  try {
+    const until = Math.floor(Date.now() / 1000);
+    const since = until - 30 * 24 * 3600;
+    const res = await fetch(
+      `${cfg.apiBase}/${igUserId}/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return {};
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return {};
+
+    const getValues = (name: string): number[] | undefined => {
+      const m = data.data!.find(d => d.name === name);
+      if (!m?.values?.length) return undefined;
+      return m.values.map(v => v.value ?? 0);
+    };
+
+    return {
+      reach_30d:       getValues("reach"),
+      impressions_30d: getValues("impressions"),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Fetches hour-by-hour online follower counts via /{igUserId}/insights.
+ * Keys are "0"–"23" (UTC hour), values are absolute follower counts.
+ * Returns null on any error.
+ */
+export async function getOnlineFollowersByHour(
+  accessToken: string,
+  igUserId:    string,
+): Promise<Record<string, number> | null> {
+  try {
+    const res = await fetch(
+      `${cfg.apiBase}/${igUserId}/insights?metric=online_followers&period=lifetime&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { data?: InsightMetric[] };
+    const m   = data.data?.find(d => d.name === "online_followers");
+    const raw = m?.values?.[0]?.value;
+    return raw && typeof raw === "object" ? (raw as Record<string, number>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches richer audience demographics via /{igUserId}/insights.
+ * Includes locale breakdown (not available via /me/insights).
+ * Returns null on any error.
+ */
+export async function getAudienceDemographics(
+  accessToken: string,
+  igUserId:    string,
+): Promise<InstagramAudience | null> {
+  try {
+    const metrics = "audience_gender_age,audience_country,audience_locale";
+    const res = await fetch(
+      `${cfg.apiBase}/${igUserId}/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { data?: InsightMetric[] };
+    if (!data.data) return null;
+
+    const getObj = (name: string): Record<string, number> | undefined => {
+      const m   = data.data!.find(d => d.name === name);
+      const raw = m?.values?.[0]?.value;
+      return raw && typeof raw === "object" ? (raw as Record<string, number>) : undefined;
+    };
+
+    const result: InstagramAudience = {
+      gender_age: getObj("audience_gender_age"),
+      country:    getObj("audience_country"),
+      locale:     getObj("audience_locale"),
+    };
+    // Return null if all fields are empty
+    if (!result.gender_age && !result.country && !result.locale) return null;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches the user's active stories and per-story engagement metrics in parallel.
+ * Returns an empty array on any error or when no stories are live.
+ */
+export async function getStoriesInsights(
+  accessToken: string,
+  igUserId:    string,
+): Promise<InstagramStory[]> {
+  try {
+    const res = await fetch(
+      `${cfg.apiBase}/${igUserId}/stories?fields=id,media_url,timestamp&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      data?: Array<{ id: string; media_url?: string; timestamp: string }>;
+    };
+    const stories = data.data ?? [];
+    if (!stories.length) return [];
+
+    // Fan out per-story insight requests in parallel
+    const insightResults = await Promise.allSettled(
+      stories.map(async s => {
+        const ires = await fetch(
+          `${cfg.apiBase}/${s.id}/insights?metric=exits,impressions,reach,replies,taps_forward,taps_back&access_token=${accessToken}`,
+          { cache: "no-store" },
+        );
+        if (!ires.ok) return {} as Partial<InstagramStory>;
+        const idata = await ires.json() as { data?: InsightMetric[] };
+        if (!idata.data) return {} as Partial<InstagramStory>;
+        const getValue = (name: string): number | undefined =>
+          idata.data!.find(d => d.name === name)?.values?.[0]?.value;
+        return {
+          exits:        getValue("exits"),
+          impressions:  getValue("impressions"),
+          reach:        getValue("reach"),
+          replies:      getValue("replies"),
+          taps_forward: getValue("taps_forward"),
+          taps_back:    getValue("taps_back"),
+        } as Partial<InstagramStory>;
+      }),
+    );
+
+    return stories.map((s, i) => ({
+      id:        s.id,
+      media_url: s.media_url,
+      timestamp: s.timestamp,
+      ...(insightResults[i].status === "fulfilled" ? insightResults[i].value : {}),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**

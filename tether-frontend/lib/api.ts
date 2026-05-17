@@ -144,7 +144,7 @@ export interface YouTubeStatsResponse {
 
 export interface InstagramPost {
   id:             string;
-  media_type:     "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_type:     "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REEL";
   media_url:      string;
   thumbnail_url?: string;
   caption?:       string;
@@ -157,6 +157,8 @@ export interface InstagramPost {
   saved?:               number;
   shares?:              number;
   video_views?:         number;   // VIDEO only
+  plays?:               number;   // REEL only
+  avg_watch_time?:      number;   // REEL only (seconds)
   follows?:             number;
   profile_visits?:      number;
   total_interactions?:  number;
@@ -173,18 +175,44 @@ export interface InstagramAccountInsights {
   audience_country?:    Record<string, number>;  // "IN" → 0.65 (fraction)
   audience_city?:       Record<string, number>;  // "Mumbai" → 0.12 (fraction)
   online_followers?:    Record<string, number>;  // "0"–"23" → follower count (absolute)
+  // 30-day daily time series (one value per day, oldest→newest)
+  reach_30d?:       number[];
+  impressions_30d?: number[];
+}
+
+/** Richer audience demographics fetched via /{id}/insights (includes locale). */
+export interface InstagramAudience {
+  gender_age?: Record<string, number>;  // "M.25-34" → fraction
+  country?:    Record<string, number>;  // "IN" → fraction
+  locale?:     Record<string, number>;  // "en_US" → fraction
+}
+
+/** A single Instagram Story with optional engagement metrics. */
+export interface InstagramStory {
+  id:           string;
+  media_url?:   string;
+  timestamp:    string;
+  reach?:       number;
+  impressions?: number;
+  exits?:       number;
+  replies?:     number;
+  taps_forward?: number;
+  taps_back?:   number;
 }
 
 export interface InstagramStatsResponse {
-  username:            string;
-  full_name:           string;
-  profile_picture_url: string | null;
-  followers_count:     number;
-  media_count:         number;
-  recent_posts:        InstagramPost[];
-  account_insights:    InstagramAccountInsights;
-  token_expires_at:    string | null;
-  connected_at:        string;
+  username:                 string;
+  full_name:                string;
+  profile_picture_url:      string | null;
+  followers_count:          number;
+  media_count:              number;
+  recent_posts:             InstagramPost[];
+  account_insights:         InstagramAccountInsights;
+  online_followers_by_hour?: Record<string, number> | null;
+  audience?:                InstagramAudience | null;
+  stories?:                 InstagramStory[];
+  token_expires_at:         string | null;
+  connected_at:             string;
 }
 
 export interface MetricVisibility {

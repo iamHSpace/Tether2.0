@@ -1195,7 +1195,242 @@ export default function DashboardPage() {
                 );
               })()}
 
-              {/* Recent posts + per-post insights */}
+              {/* ── Card 1: Reach & Growth (30-day) ──────────────────────── */}
+              {(() => {
+                const ai = igData.account_insights;
+                const hasReach = ai?.reach_30d && ai.reach_30d.length > 0;
+                const hasImp   = ai?.impressions_30d && ai.impressions_30d.length > 0;
+                if (!hasReach && !hasImp) return null;
+                return (
+                  <section>
+                    <SectionHeader title="Reach &amp; Growth" subtitle="30-day daily reach and impressions." />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {hasReach && (
+                        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h3 className="text-sm font-bold text-gray-900">Daily Reach</h3>
+                              <p className="text-xs text-gray-400">Unique accounts reached per day (last 30 days)</p>
+                            </div>
+                            <span className="text-xs font-semibold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
+                              Total: {fmt(ai!.reach_30d!.reduce((s, v) => s + v, 0))}
+                            </span>
+                          </div>
+                          <AreaChart data={ai!.reach_30d!} color="#ec4899" gradientId="ig-reach-30d" />
+                          <div className="flex justify-between text-[10px] text-gray-300 mt-1 px-0.5">
+                            <span>30d ago</span><span>Today</span>
+                          </div>
+                        </div>
+                      )}
+                      {hasImp && (
+                        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h3 className="text-sm font-bold text-gray-900">Daily Impressions</h3>
+                              <p className="text-xs text-gray-400">Total content impressions per day (last 30 days)</p>
+                            </div>
+                            <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                              Total: {fmt(ai!.impressions_30d!.reduce((s, v) => s + v, 0))}
+                            </span>
+                          </div>
+                          <AreaChart data={ai!.impressions_30d!} color="#7c3aed" gradientId="ig-imp-30d" />
+                          <div className="flex justify-between text-[10px] text-gray-300 mt-1 px-0.5">
+                            <span>30d ago</span><span>Today</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* ── Card 2: Best Time to Post ─────────────────────────────── */}
+              {igData.online_followers_by_hour && (() => {
+                const raw  = igData.online_followers_by_hour!;
+                const maxV = Math.max(...Object.values(raw), 1);
+                const hours = Array.from({ length: 24 }, (_, h) => ({
+                  hour:  h,
+                  label: h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`,
+                  count: raw[String(h)] ?? 0,
+                  pct:   Math.round(((raw[String(h)] ?? 0) / maxV) * 100),
+                }));
+                const peakHour = hours.reduce((b, h) => h.count > b.count ? h : b, hours[0]);
+                return (
+                  <section>
+                    <SectionHeader title="Best Time to Post" subtitle="Followers online by hour of day (UTC)." />
+                    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-card">
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-xs text-gray-400">Peak hour highlighted in purple</p>
+                        <span className="text-[11px] text-purple-600 font-semibold bg-purple-50 px-2.5 py-1 rounded-full">
+                          Peak: {peakHour.label} UTC · {fmt(peakHour.count)} online
+                        </span>
+                      </div>
+                      <div className="flex items-end gap-0.5 h-16">
+                        {hours.map(h => (
+                          <div key={h.hour} className="flex-1 flex flex-col items-center" title={`${h.label}: ${fmt(h.count)}`}>
+                            <div
+                              className={`w-full rounded-sm transition-colors ${h.hour === peakHour.hour ? "bg-purple-500" : "bg-purple-200"}`}
+                              style={{ height: `${Math.max(h.pct, 4)}%` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between text-[9px] text-gray-400 mt-1.5 px-0.5">
+                        <span>12a</span><span>3a</span><span>6a</span><span>9a</span>
+                        <span>12p</span><span>3p</span><span>6p</span><span>9p</span><span>11p</span>
+                      </div>
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* ── Card 3: Audience Breakdown (locale included) ─────────── */}
+              {igData.audience && (() => {
+                const aud = igData.audience!;
+                const hasGenderAge = aud.gender_age && Object.keys(aud.gender_age).length > 0;
+                const hasCountry   = aud.country    && Object.keys(aud.country).length > 0;
+                const hasLocale    = aud.locale     && Object.keys(aud.locale).length > 0;
+                if (!hasGenderAge && !hasCountry && !hasLocale) return null;
+
+                const gaParsed = hasGenderAge ? (() => {
+                  let male = 0; let female = 0;
+                  const brackets: { label: string; pct: number }[] = [];
+                  for (const [key, val] of Object.entries(aud.gender_age!)) {
+                    const pct = val <= 1 ? Math.round(val * 100) : Math.round(val);
+                    if (key.startsWith("M.")) male += pct; else if (key.startsWith("F.")) female += pct;
+                    brackets.push({ label: key.replace("M.", "M ").replace("F.", "F "), pct });
+                  }
+                  brackets.sort((a, b) => b.pct - a.pct);
+                  return { male, female, brackets: brackets.slice(0, 6) };
+                })() : null;
+
+                const countries = hasCountry
+                  ? Object.entries(aud.country!).map(([code, val]) => ({
+                      code, pct: val <= 1 ? Math.round(val * 100) : Math.round(val),
+                    })).sort((a, b) => b.pct - a.pct).slice(0, 5)
+                  : null;
+
+                const locales = hasLocale
+                  ? Object.entries(aud.locale!).map(([code, val]) => ({
+                      code, pct: val <= 1 ? Math.round(val * 100) : Math.round(val),
+                    })).sort((a, b) => b.pct - a.pct).slice(0, 5)
+                  : null;
+
+                return (
+                  <section>
+                    <SectionHeader title="Audience Breakdown" subtitle="Gender, country, and locale breakdown." />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {gaParsed && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card space-y-3">
+                          <p className="text-xs font-bold text-gray-700">Gender Split</p>
+                          <div className="flex rounded-full overflow-hidden h-3">
+                            <div className="bg-blue-400" style={{ width: `${gaParsed.male}%` }} />
+                            <div className="bg-pink-400 flex-1" />
+                          </div>
+                          <div className="flex gap-4 text-[11px] text-gray-500">
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />Male {gaParsed.male}%</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />Female {gaParsed.female}%</span>
+                          </div>
+                          <div className="space-y-1.5 pt-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Age Brackets</p>
+                            {gaParsed.brackets.map(b => (
+                              <div key={b.label} className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-500 w-14 shrink-0">{b.label}</span>
+                                <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-pink-400" style={{ width: `${Math.min(b.pct * 2, 100)}%` }} />
+                                </div>
+                                <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{b.pct}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {countries && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card space-y-2">
+                          <p className="text-xs font-bold text-gray-700">Top Countries</p>
+                          {countries.map(c => (
+                            <div key={c.code} className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-500 w-7 shrink-0 font-mono">{c.code}</span>
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-pink-400 to-purple-400" style={{ width: `${Math.min(c.pct * 1.5, 100)}%` }} />
+                              </div>
+                              <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{c.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {locales && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card space-y-2">
+                          <p className="text-xs font-bold text-gray-700">Top Locales</p>
+                          {locales.map(l => (
+                            <div key={l.code} className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-500 w-12 shrink-0 font-mono">{l.code}</span>
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-blue-400" style={{ width: `${Math.min(l.pct * 1.5, 100)}%` }} />
+                              </div>
+                              <span className="text-[10px] font-semibold text-gray-600 w-8 text-right">{l.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* ── Card 4: Recent Stories ────────────────────────────────── */}
+              {igData.stories && igData.stories.length > 0 && (
+                <section>
+                  <SectionHeader title="Recent Stories" subtitle="Active stories with reach, replies, and tap metrics." />
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-w-lg">
+                    {igData.stories.slice(0, 6).map(story => (
+                      <div key={story.id} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-gray-100 group">
+                        {story.media_url
+                          ? <img src={story.media_url} alt="Story" className="w-full h-full object-cover" loading="lazy" />
+                          : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-100">
+                              <IconInstagram size={16} className="text-pink-300" />
+                            </div>
+                        }
+                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 p-1.5 text-white text-[10px] font-semibold">
+                          {story.reach        !== undefined && <span>👁 {fmt(story.reach)}</span>}
+                          {story.impressions  !== undefined && <span>📊 {fmt(story.impressions)}</span>}
+                          {story.replies      !== undefined && <span>💬 {fmt(story.replies)}</span>}
+                          {story.taps_forward !== undefined && <span>→ {fmt(story.taps_forward)}</span>}
+                          {story.taps_back    !== undefined && <span>← {fmt(story.taps_back)}</span>}
+                          {story.exits        !== undefined && <span>✗ {fmt(story.exits)}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Story summary row */}
+                  {(() => {
+                    const withData = igData.stories!.filter(s => s.reach !== undefined);
+                    if (!withData.length) return null;
+                    const totalReach = withData.reduce((s, st) => s + (st.reach ?? 0), 0);
+                    const totalReplies = withData.reduce((s, st) => s + (st.replies ?? 0), 0);
+                    const totalImpressions = withData.reduce((s, st) => s + (st.impressions ?? 0), 0);
+                    return (
+                      <div className="flex gap-3 mt-3">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-50 border border-pink-100 text-xs font-semibold text-pink-700">
+                          <IconEye size={11} /> {fmt(totalReach)} reach
+                        </div>
+                        {totalImpressions > 0 && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-100 text-xs font-semibold text-purple-700">
+                            <IconTrendUp size={11} /> {fmt(totalImpressions)} impressions
+                          </div>
+                        )}
+                        {totalReplies > 0 && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-xs font-semibold text-emerald-700">
+                            💬 {fmt(totalReplies)} replies
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </section>
+              )}
+
+              {/* ── Recent posts + per-post insights ─────────────────────── */}
               {igData.recent_posts.length > 0 && (() => {
                 const postsWithInsights    = igData.recent_posts.filter(p => p.reach !== undefined);
                 const hasPostInsights      = postsWithInsights.length > 0;
@@ -1241,6 +1476,8 @@ export default function DashboardPage() {
                               {post.reach             !== undefined && <span>👁 {fmt(post.reach)}</span>}
                               {post.impressions       !== undefined && <span>📊 {fmt(post.impressions)}</span>}
                               {post.video_views       !== undefined && <span>▶ {fmt(post.video_views)}</span>}
+                              {post.plays             !== undefined && <span>▶ {fmt(post.plays)} plays</span>}
+                              {post.avg_watch_time    !== undefined && <span>⏱ {post.avg_watch_time.toFixed(1)}s avg</span>}
                               {post.saved             !== undefined && <span>🔖 {fmt(post.saved)}</span>}
                               {post.shares            !== undefined && <span>↗ {fmt(post.shares)}</span>}
                               {post.follows           !== undefined && <span>➕ {fmt(post.follows)}</span>}
@@ -1248,6 +1485,9 @@ export default function DashboardPage() {
                             </div>
                             {post.media_type === "VIDEO" && (
                               <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">▶</div>
+                            )}
+                            {post.media_type === "REEL" && (
+                              <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⏺</div>
                             )}
                             {post.media_type === "CAROUSEL_ALBUM" && (
                               <div className="absolute top-1.5 right-1.5 bg-black/60 rounded px-1 py-0.5 text-[9px] text-white font-bold">⊞</div>

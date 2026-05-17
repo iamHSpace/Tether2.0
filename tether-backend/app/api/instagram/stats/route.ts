@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromBearer } from "@/lib/supabaseServer";
 import { supabase as adminClient } from "@/lib/supabase";
-import { getInstagramAccount, getInstagramMedia, getInstagramAccountInsights } from "@/lib/instagram";
+import {
+  getInstagramAccount,
+  getInstagramMedia,
+  getInstagramAccountInsights,
+  getAccountInsights30d,
+  getOnlineFollowersByHour,
+  getAudienceDemographics,
+  getStoriesInsights,
+} from "@/lib/instagram";
 import { decrypt } from "@/lib/encryption";
 import { platforms } from "@/lib/config";
 
@@ -55,13 +63,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "not_connected" }, { status: 404 });
   }
 
-  // 4. Fetch account, media, and account insights in parallel
+  // 4. Fetch all data in parallel — account must succeed; rest are best-effort
   try {
-    const [account, posts, accountInsights] = await Promise.all([
+    const [
+      accountResult,
+      postsResult,
+      accountInsightsResult,
+      insights30dResult,
+      onlineHoursResult,
+      audienceResult,
+      storiesResult,
+    ] = await Promise.allSettled([
       getInstagramAccount(accessToken),
       getInstagramMedia(accessToken, igUserId),
       getInstagramAccountInsights(accessToken),
+      getAccountInsights30d(accessToken, igUserId),
+      getOnlineFollowersByHour(accessToken, igUserId),
+      getAudienceDemographics(accessToken, igUserId),
+      getStoriesInsights(accessToken, igUserId),
     ]);
+
+    // Account is required — surface error if it failed
+    if (accountResult.status === "rejected") throw accountResult.reason;
+    const account = accountResult.value;
+
+    const posts           = postsResult.status           === "fulfilled" ? postsResult.value           : [];
+    const accountInsights = accountInsightsResult.status === "fulfilled" ? accountInsightsResult.value  : {};
+    const insights30d     = insights30dResult.status     === "fulfilled" ? insights30dResult.value      : {};
+    const onlineHours     = onlineHoursResult.status     === "fulfilled" ? onlineHoursResult.value      : null;
+    const audience        = audienceResult.status        === "fulfilled" ? audienceResult.value         : null;
+    const stories         = storiesResult.status         === "fulfilled" ? storiesResult.value          : [];
+
+    // Merge 30-day time series into account insights object
+    const mergedInsights = { ...accountInsights, ...insights30d };
 
     // 5. Persist snapshot — fire-and-forget
     adminClient
@@ -69,7 +103,14 @@ export async function GET(req: NextRequest) {
       .insert({
         user_id:  user.id,
         platform: platforms.INSTAGRAM,
-        data:     { account, posts, account_insights: accountInsights },
+        data:     {
+          account,
+          posts,
+          account_insights:         mergedInsights,
+          online_followers_by_hour: onlineHours,
+          audience,
+          stories,
+        },
       })
       .then(({ error }) => {
         if (error) console.error("[instagram/stats] snapshot insert failed:", error.message);
@@ -84,15 +125,18 @@ export async function GET(req: NextRequest) {
       });
 
     return NextResponse.json({
-      username:            account.username,
-      full_name:           account.name,
-      profile_picture_url: account.profile_picture_url ?? null,
-      followers_count:     account.followers_count,
-      media_count:         account.media_count,
-      recent_posts:        posts,
-      account_insights:    accountInsights,
-      token_expires_at:    row.token_expiry ?? null,
-      connected_at:        row.created_at,
+      username:                account.username,
+      full_name:               account.name,
+      profile_picture_url:     account.profile_picture_url ?? null,
+      followers_count:         account.followers_count,
+      media_count:             account.media_count,
+      recent_posts:            posts,
+      account_insights:        mergedInsights,
+      online_followers_by_hour: onlineHours,
+      audience,
+      stories,
+      token_expires_at:        row.token_expiry ?? null,
+      connected_at:            row.created_at,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
