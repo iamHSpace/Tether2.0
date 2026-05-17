@@ -80,7 +80,8 @@ supabase.auth.signUp({ options: { data: { user_type: "creator" | "business", ful
 | Login with email **or username** | `/login` → resolves via `POST /api/auth/resolve-email` |
 | Multi-step onboarding wizard | `/onboarding` |
 | Connect YouTube (OAuth, auto-refresh) | Dashboard → Connect YouTube |
-| Connect Instagram (OAuth, long-lived token) | Dashboard → Connect Instagram |
+| Connect Instagram (OAuth, long-lived token, 60-day expiry) | Dashboard → Connect Instagram |
+| Instagram analytics dashboard (reach, activity, audience) | `/dashboard` |
 | YouTube analytics dashboard | `/dashboard` |
 | Metric visibility toggles | `/dashboard` |
 | Profile view stats widget (weekly / daily chart) | `/dashboard` |
@@ -131,7 +132,7 @@ All writes scoped to API key owner — structurally impossible to modify another
 ### Public features
 | Feature | Where |
 |---|---|
-| Creator public profile (ISR, 5 min revalidate) | `/c/:username` |
+| Creator public profile (ISR, 5 min revalidate) — YouTube + Instagram metrics, 30-day reach chart | `/c/:username` and `/[handle]` |
 | API documentation (Swagger UI, loaded from backend) | `/docs` |
 | Pricing page (plan comparison, Stripe checkout) | `/pricing` |
 
@@ -190,6 +191,7 @@ All writes scoped to API key owner — structurally impossible to modify another
 | GET | `/api/youtube/stats` | Channel stats + recent videos; writes `metric_snapshots`; touches `last_active_at` |
 | POST | `/api/oauth/instagram` | Returns Facebook consent URL |
 | GET | `/api/oauth/instagram/callback` | Code exchange → long-lived token store |
+| GET | `/api/instagram/stats` | Account info + recent posts + account insights (reach, activity, audience); writes `metric_snapshots`; touches `last_active_at` |
 
 ### Creators & discovery
 | Method | Path | Notes |
@@ -420,6 +422,7 @@ Handled by `tether-backend/middleware.ts` (not `vercel.json`). It reads `FRONTEN
 | `supabaseServer.ts` | `getUserFromBearer()` — JWT verification for session-auth routes |
 | `config.ts` | All URLs and platform constants |
 | `youtube.ts` | YouTube Data API calls; capped at 100 videos, parallel chunk fetches |
+| `instagram.ts` | Instagram Graph API calls; see "Instagram integration" section below for v21+ notes |
 
 ---
 
@@ -492,6 +495,9 @@ ENCRYPTION_SECRET=<must match production value>
 GOOGLE_CLIENT_ID=<Google Cloud OAuth client>
 GOOGLE_CLIENT_SECRET=<Google Cloud OAuth secret>
 YOUTUBE_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/youtube/callback
+INSTAGRAM_CLIENT_ID=2451152415325481
+INSTAGRAM_CLIENT_SECRET=b97257f801a52d9b60cba868faef6c9a
+INSTAGRAM_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/instagram/callback
 CRON_SECRET=tether_cron_secret_local
 STRIPE_SECRET_KEY=sk_test_...   (optional)
 STRIPE_WEBHOOK_SECRET=whsec_... (optional)
@@ -512,6 +518,13 @@ Get production Supabase keys:
 cd tether-backend && supabase projects api-keys --project-ref vywuvfjjqvanimizbero
 ```
 
+**Instagram (production Vercel env vars):**
+```
+INSTAGRAM_CLIENT_ID=2451152415325481
+INSTAGRAM_CLIENT_SECRET=b97257f801a52d9b60cba868faef6c9a
+INSTAGRAM_REDIRECT_URI=https://api.statvora.in/api/oauth/instagram/callback
+```
+
 **Google Cloud redirect URIs to register:**
 ```
 http://127.0.0.1:3001/api/auth/google/code  ← local login/signup
@@ -521,6 +534,87 @@ https://api.statvora.in/api/oauth/youtube/callback ← production YouTube connec
 ```
 
 > Always use `127.0.0.1`, not `localhost` — cookie domain matching requires it.
+
+---
+
+## Instagram integration
+
+### OAuth flow
+1. Dashboard → "Connect Instagram" → frontend calls `POST /api/oauth/instagram` → returns Facebook Login URL (scope includes `instagram_business_manage_insights`).
+2. User completes Facebook/Instagram consent.
+3. `/api/oauth/instagram/callback` receives short-lived code → exchanges for short-lived token → exchanges for **long-lived token** (60-day lifetime) via `/oauth/access_token?grant_type=ig_exchange_token`.
+4. Also fetches `GET /me?fields=id,username,name,followers_count,media_count` to get the Instagram user ID (`ig_user_id`).
+5. Stores AES-256-GCM encrypted token in `platform_tokens` with `platform = 'instagram'`, `platform_user_id = ig_user_id`, `token_expiry = now + 60 days`.
+6. Redirects to `<FRONTEND_URL>/dashboard?instagram_connected=true`.
+
+**Token lifespan:** Long-lived Instagram tokens last **60 days** — there is no automatic refresh. The stats route checks expiry and deletes the row if expired, forcing the user to reconnect.
+
+### Meta app setup (required)
+The Facebook app (`App ID: 2451152415325481`) must have the `instagram_business_manage_insights` permission declared under **Use Cases → Instagram API → Permissions and features** in Meta Developer Console. Without this, the permission is silently ignored during OAuth and all `/me/insights` calls return `403 OAuthException`.
+
+Steps to verify:
+1. Meta Developer Console → App → Use Cases → Instagram API
+2. Confirm `instagram_business_manage_insights` is listed under "Permissions and features"
+3. If missing, click "Add permission" — no app review required while app is in Development mode
+
+### Instagram Graph API v21+ breaking changes
+**`impressions` metric has been completely removed.** Do not use it — it returns `400` with:
+> `"metric[1] must be one of the following values: reach, follower_count, website_clicks, profile_views, ..."`
+
+**Audience demographics format changed.** The old `audience_gender_age` and `audience_country` metrics are gone. Use `follower_demographics` with `breakdown` parameter:
+```
+# Age + gender breakdown
+GET /me/insights?metric=follower_demographics&period=lifetime&breakdown=age,gender
+
+# Country breakdown
+GET /me/insights?metric=follower_demographics&period=lifetime&breakdown=country
+```
+Response shape (v21+):
+```json
+{
+  "data": [{
+    "total_value": {
+      "breakdowns": [{
+        "results": [
+          { "dimension_values": ["18-24", "F"], "value": 120 },
+          { "dimension_values": ["25-34", "M"], "value": 85 }
+        ]
+      }]
+    }
+  }]
+}
+```
+`lib/instagram.ts` normalises this back to `Record<string, number>` keyed as `"M.25-34"` / `"F.18-24"` for age-gender, and `"IN"` / `"US"` etc. for country.
+
+### `getInstagramAccountInsights()` — three parallel fetches
+1. **Activity** (`fetchActivityInsights`): `website_clicks,profile_views` with `period=day` (no date range). Returns empty arrays for small/new accounts — not an error.
+2. **Reach** (`fetchReachInsights`): `reach` only with 30-day `since`/`until` date range. Returns `account_reach` (sum) and `reach_30d` (array for chart).
+3. **Audience** (`fetchAudienceInsights`): two parallel calls — one for `breakdown=age,gender`, one for `breakdown=country`. Returns `audience_gender_age` and `audience_country`.
+
+All three run via `Promise.allSettled` — a failure in any one returns `{}` for that section without breaking the others.
+
+### Public profile (`/[handle]` page)
+The creator public profile page displays:
+- Core Instagram stats card (followers, posts count)
+- **30-Day Reach chart** — `AreaChart` over `account_insights.reach_30d` array, total unique accounts reached shown as headline number
+- Audience demographics (gender/age + country) — only shown when `follower_demographics` returns data (requires sufficient account history)
+
+The `metric_snapshots` row stores `data.account_insights.reach_30d` (array of daily values). After the first successful stats load post-reconnect, the public profile will show the reach chart on the next ISR revalidation (≤5 min).
+
+### Debug endpoint (temporary — delete after confirming live)
+`GET /api/instagram/debug` — requires Bearer auth — fires 12 parallel raw Instagram API calls and returns `{ label, status, body }` for each. Used to diagnose which metrics/formats work for a given token.
+
+To call from browser console (get session token from Supabase cookies):
+```javascript
+const chunks = ['sb-vywuvfjjqvanimizbero-auth-token.0', 'sb-vywuvfjjqvanimizbero-auth-token.1']
+  .map(k => document.cookie.split('; ').find(c => c.startsWith(k + '='))?.split('=')[1] ?? '');
+const raw = atob((chunks[0] + chunks[1]).slice(7));
+const token = JSON.parse(raw).access_token;
+const res = await fetch('https://api.statvora.in/api/instagram/debug', { headers: { Authorization: 'Bearer ' + token } });
+console.log(await res.json());
+```
+
+Delete file: `tether-backend/app/api/instagram/debug/route.ts`
 
 ---
 

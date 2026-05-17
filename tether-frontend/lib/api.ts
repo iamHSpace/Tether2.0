@@ -299,6 +299,7 @@ export interface InstagramSnapshotData {
   };
   posts: InstagramPostSnapshot[];
   account_insights?: InstagramAccountInsights;
+  stories?: InstagramStory[];
 }
 
 export interface CreatorResponse {
