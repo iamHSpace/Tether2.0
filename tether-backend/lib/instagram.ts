@@ -330,80 +330,32 @@ async function fetchActivityInsights(accessToken: string): Promise<Partial<Insta
 }
 
 /**
- * Fetches reach and impressions daily time-series for the last 30 days.
- * Requires instagram_business_manage_insights scope.
- * Returns per-day arrays for charting; falls back gracefully on any error.
+ * Fetches reach daily time-series for the last 30 days.
+ * NOTE: `impressions` was removed from the Instagram Graph API (v21+).
+ * Only `reach` is fetched here. `impressions_30d` will always be undefined.
  */
 async function fetchReachInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
   try {
     const until = Math.floor(Date.now() / 1000);
     const since = until - 30 * 24 * 3600;
     const res = await fetch(
-      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      `${cfg.apiBase}/me/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
       { cache: "no-store" },
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       console.error("[ig:reach]", res.status, JSON.stringify(err));
-      // Try without date range as a fallback (returns last ~7 days)
-      return fetchReachInsightsFallback(accessToken);
-    }
-    const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return {};
-
-    const getSum = (name: string): number | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      if (!m?.values?.length) return undefined;
-      return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
-    };
-    const getValues = (name: string): number[] | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      if (!m?.values?.length) return undefined;
-      return m.values.map(v => v.value ?? 0);
-    };
-
-    return {
-      account_reach:       getSum("reach"),
-      account_impressions: getSum("impressions"),
-      reach_30d:           getValues("reach"),
-      impressions_30d:     getValues("impressions"),
-    };
-  } catch {
-    return {};
-  }
-}
-
-/** Fallback: fetch reach/impressions without a date range (last ~7 days). */
-async function fetchReachInsightsFallback(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
-  try {
-    const res = await fetch(
-      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("[ig:reach-fallback]", res.status, JSON.stringify(err));
       return {};
     }
     const data = await res.json() as { data?: InsightMetric[] };
     if (!data.data) return {};
 
-    const getSum = (name: string): number | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      if (!m?.values?.length) return undefined;
-      return m.values.reduce((s, v) => s + (v.value ?? 0), 0);
-    };
-    const getValues = (name: string): number[] | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      if (!m?.values?.length) return undefined;
-      return m.values.map(v => v.value ?? 0);
-    };
+    const m = data.data.find(d => d.name === "reach");
+    if (!m?.values?.length) return {};
 
     return {
-      account_reach:       getSum("reach"),
-      account_impressions: getSum("impressions"),
-      reach_30d:           getValues("reach"),
-      impressions_30d:     getValues("impressions"),
+      account_reach: m.values.reduce((s, v) => s + (v.value ?? 0), 0),
+      reach_30d:     m.values.map(v => v.value ?? 0),
     };
   } catch {
     return {};
@@ -411,54 +363,66 @@ async function fetchReachInsightsFallback(accessToken: string): Promise<Partial<
 }
 
 /**
- * Fetches lifetime audience demographic snapshots.
- * Tries the full metric set first; if Instagram returns 400 (e.g. audience_city
- * or online_followers not supported on this account type), retries with just
- * the two core metrics that are universally available.
+ * Fetches lifetime audience demographic snapshots using the v21+ API.
+ * `audience_gender_age` / `audience_country` were removed in v21.
+ * The replacement is `follower_demographics` with a `breakdown` parameter.
+ * Response shape differs from the old API — we normalise it to the existing
+ * Record<string, number> shape so the frontend needs no changes.
  */
 async function fetchAudienceInsights(accessToken: string): Promise<Partial<InstagramAccountInsights>> {
-  const full = await _fetchAudienceMetrics(
-    accessToken,
-    "audience_gender_age,audience_country,audience_city,online_followers",
-  );
-  if (full !== null) return full;
-
-  // audience_city / online_followers may not be available on all account types
-  const core = await _fetchAudienceMetrics(accessToken, "audience_gender_age,audience_country");
-  return core ?? {};
-}
-
-async function _fetchAudienceMetrics(
-  accessToken: string,
-  metrics: string,
-): Promise<Partial<InstagramAccountInsights> | null> {
   try {
-    const res = await fetch(
-      `${cfg.apiBase}/me/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("[ig:audience]", res.status, JSON.stringify(err));
-      return null; // signal caller to try narrower metric set
-    }
-    const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return {};
+    const [ageRes, countryRes] = await Promise.all([
+      fetch(
+        `${cfg.apiBase}/me/insights?metric=follower_demographics&period=lifetime&breakdown=age,gender&access_token=${accessToken}`,
+        { cache: "no-store" },
+      ),
+      fetch(
+        `${cfg.apiBase}/me/insights?metric=follower_demographics&period=lifetime&breakdown=country&access_token=${accessToken}`,
+        { cache: "no-store" },
+      ),
+    ]);
 
-    const getObj = (name: string): Record<string, number> | undefined => {
-      const m = data.data!.find(d => d.name === name);
-      const raw = m?.values?.[0]?.value;
-      return raw && typeof raw === "object" ? raw as Record<string, number> : undefined;
+    // Parse the new breakdown format into Record<string, number>
+    const parseBreakdown = async (
+      res: Response,
+      keyFn: (dims: string[]) => string,
+    ): Promise<Record<string, number> | undefined> => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[ig:audience]", res.status, JSON.stringify(err));
+        return undefined;
+      }
+      const body = await res.json() as {
+        data?: Array<{
+          total_value?: {
+            breakdowns?: Array<{
+              dimension_keys: string[];
+              results: Array<{ dimension_values: string[]; value: number }>;
+            }>;
+          };
+        }>;
+      };
+      const breakdowns = body.data?.[0]?.total_value?.breakdowns?.[0]?.results;
+      if (!breakdowns?.length) return undefined;
+      const out: Record<string, number> = {};
+      for (const r of breakdowns) {
+        out[keyFn(r.dimension_values)] = r.value;
+      }
+      return Object.keys(out).length ? out : undefined;
     };
+
+    const [gender_age, country] = await Promise.all([
+      // Key format: "M.25-34" → gender first, then age
+      parseBreakdown(ageRes, ([age, gender]) => `${gender}.${age}`),
+      parseBreakdown(countryRes, ([c]) => c),
+    ]);
 
     return {
-      audience_gender_age: getObj("audience_gender_age"),
-      audience_country:    getObj("audience_country"),
-      audience_city:       getObj("audience_city"),
-      online_followers:    getObj("online_followers"),
+      audience_gender_age: gender_age,
+      audience_country:    country,
     };
   } catch {
-    return null;
+    return {};
   }
 }
 
