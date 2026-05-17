@@ -380,18 +380,19 @@ export async function getInstagramAccountInsights(
 }
 
 /**
- * Fetches 30 days of daily reach + impressions via /{igUserId}/insights.
+ * Fetches 30 days of daily reach + impressions via /me/insights.
+ * Uses the same proven endpoint as fetchPeriodInsights but with a 30-day window
+ * and returns the per-day arrays instead of summing.
  * Returns arrays of numbers (oldest→newest).  Never throws.
  */
 export async function getAccountInsights30d(
   accessToken: string,
-  igUserId:    string,
 ): Promise<Pick<InstagramAccountInsights, "reach_30d" | "impressions_30d">> {
   try {
     const until = Math.floor(Date.now() / 1000);
     const since = until - 30 * 24 * 3600;
     const res = await fetch(
-      `${cfg.apiBase}/${igUserId}/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
+      `${cfg.apiBase}/me/insights?metric=reach,impressions&period=day&since=${since}&until=${until}&access_token=${accessToken}`,
       { cache: "no-store" },
     );
     if (!res.ok) return {};
@@ -414,78 +415,16 @@ export async function getAccountInsights30d(
 }
 
 /**
- * Fetches hour-by-hour online follower counts via /{igUserId}/insights.
- * Keys are "0"–"23" (UTC hour), values are absolute follower counts.
- * Returns null on any error.
- */
-export async function getOnlineFollowersByHour(
-  accessToken: string,
-  igUserId:    string,
-): Promise<Record<string, number> | null> {
-  try {
-    const res = await fetch(
-      `${cfg.apiBase}/${igUserId}/insights?metric=online_followers&period=lifetime&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as { data?: InsightMetric[] };
-    const m   = data.data?.find(d => d.name === "online_followers");
-    const raw = m?.values?.[0]?.value;
-    return raw && typeof raw === "object" ? (raw as Record<string, number>) : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetches richer audience demographics via /{igUserId}/insights.
- * Includes locale breakdown (not available via /me/insights).
- * Returns null on any error.
- */
-export async function getAudienceDemographics(
-  accessToken: string,
-  igUserId:    string,
-): Promise<InstagramAudience | null> {
-  try {
-    const metrics = "audience_gender_age,audience_country,audience_locale";
-    const res = await fetch(
-      `${cfg.apiBase}/${igUserId}/insights?metric=${metrics}&period=lifetime&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as { data?: InsightMetric[] };
-    if (!data.data) return null;
-
-    const getObj = (name: string): Record<string, number> | undefined => {
-      const m   = data.data!.find(d => d.name === name);
-      const raw = m?.values?.[0]?.value;
-      return raw && typeof raw === "object" ? (raw as Record<string, number>) : undefined;
-    };
-
-    const result: InstagramAudience = {
-      gender_age: getObj("audience_gender_age"),
-      country:    getObj("audience_country"),
-      locale:     getObj("audience_locale"),
-    };
-    // Return null if all fields are empty
-    if (!result.gender_age && !result.country && !result.locale) return null;
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetches the user's active stories and per-story engagement metrics in parallel.
+ * Uses /me/stories (Instagram Login flow — no user-id required in path).
  * Returns an empty array on any error or when no stories are live.
  */
 export async function getStoriesInsights(
   accessToken: string,
-  igUserId:    string,
 ): Promise<InstagramStory[]> {
   try {
     const res = await fetch(
-      `${cfg.apiBase}/${igUserId}/stories?fields=id,media_url,timestamp&access_token=${accessToken}`,
+      `${cfg.apiBase}/me/stories?fields=id,media_url,timestamp&access_token=${accessToken}`,
       { cache: "no-store" },
     );
     if (!res.ok) return [];
@@ -499,7 +438,7 @@ export async function getStoriesInsights(
     const insightResults = await Promise.allSettled(
       stories.map(async s => {
         const ires = await fetch(
-          `${cfg.apiBase}/${s.id}/insights?metric=exits,impressions,reach,replies,taps_forward,taps_back&access_token=${accessToken}`,
+          `${cfg.apiBase}/${s.id}/insights?metric=exits,impressions,reach,replies,taps_forward,taps_back&period=lifetime&access_token=${accessToken}`,
           { cache: "no-store" },
         );
         if (!ires.ok) return {} as Partial<InstagramStory>;

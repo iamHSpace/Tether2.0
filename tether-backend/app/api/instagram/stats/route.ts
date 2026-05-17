@@ -6,8 +6,6 @@ import {
   getInstagramMedia,
   getInstagramAccountInsights,
   getAccountInsights30d,
-  getOnlineFollowersByHour,
-  getAudienceDemographics,
   getStoriesInsights,
 } from "@/lib/instagram";
 import { decrypt } from "@/lib/encryption";
@@ -70,32 +68,36 @@ export async function GET(req: NextRequest) {
       postsResult,
       accountInsightsResult,
       insights30dResult,
-      onlineHoursResult,
-      audienceResult,
       storiesResult,
     ] = await Promise.allSettled([
       getInstagramAccount(accessToken),
       getInstagramMedia(accessToken, igUserId),
       getInstagramAccountInsights(accessToken),
-      getAccountInsights30d(accessToken, igUserId),
-      getOnlineFollowersByHour(accessToken, igUserId),
-      getAudienceDemographics(accessToken, igUserId),
-      getStoriesInsights(accessToken, igUserId),
+      getAccountInsights30d(accessToken),
+      getStoriesInsights(accessToken),
     ]);
 
     // Account is required — surface error if it failed
     if (accountResult.status === "rejected") throw accountResult.reason;
     const account = accountResult.value;
 
-    const posts           = postsResult.status           === "fulfilled" ? postsResult.value           : [];
-    const accountInsights = accountInsightsResult.status === "fulfilled" ? accountInsightsResult.value  : {};
-    const insights30d     = insights30dResult.status     === "fulfilled" ? insights30dResult.value      : {};
-    const onlineHours     = onlineHoursResult.status     === "fulfilled" ? onlineHoursResult.value      : null;
-    const audience        = audienceResult.status        === "fulfilled" ? audienceResult.value         : null;
-    const stories         = storiesResult.status         === "fulfilled" ? storiesResult.value          : [];
+    const posts           = postsResult.status           === "fulfilled" ? postsResult.value  : [];
+    const accountInsights = accountInsightsResult.status === "fulfilled" ? accountInsightsResult.value : {};
+    const insights30d     = insights30dResult.status     === "fulfilled" ? insights30dResult.value     : {};
+    const stories         = storiesResult.status         === "fulfilled" ? storiesResult.value         : [];
 
     // Merge 30-day time series into account insights object
     const mergedInsights = { ...accountInsights, ...insights30d };
+
+    // Derive online_followers_by_hour and audience from the already-working
+    // accountInsights (fetched via /me/insights — no extra API call needed)
+    const onlineHours = accountInsights.online_followers ?? null;
+    const audience = (accountInsights.audience_gender_age || accountInsights.audience_country)
+      ? {
+          gender_age: accountInsights.audience_gender_age,
+          country:    accountInsights.audience_country,
+        }
+      : null;
 
     // 5. Persist snapshot — fire-and-forget
     adminClient
