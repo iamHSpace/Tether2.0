@@ -205,8 +205,7 @@ export default function RootPage() {
             <span className="text-lg font-bold text-gray-950">Statvora</span>
           </Link>
           <div className="hidden items-center gap-7 md:flex">
-            <a href="#creators" className="text-sm font-semibold text-gray-600 hover:text-gray-950">Creators</a>
-            <a href="#businesses" className="text-sm font-semibold text-gray-600 hover:text-gray-950">Businesses</a>
+            <a href="#creators" className="text-sm font-semibold text-gray-600 hover:text-gray-950">Creators and Businesses</a>
             <Link href="/pricing" className="text-sm font-semibold text-gray-600 hover:text-gray-950">Pricing</Link>
           </div>
           <div className="flex items-center gap-2">
@@ -236,7 +235,7 @@ export default function RootPage() {
                 Create profile
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </CtaLink>
-              <CtaLink href="#businesses" variant="secondary">
+              <CtaLink href="#creators" variant="secondary">
                 Explore for businesses
               </CtaLink>
             </div>
