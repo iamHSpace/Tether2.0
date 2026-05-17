@@ -49,7 +49,9 @@ export default function Sidebar({ email, username, displayName, userType = "crea
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <a href="/" className="flex items-center gap-2.5">
-          <img src="/brand/logo-icon.svg" width={32} height={32} alt="Statvora" className="rounded-xl" />
+          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
+            <img src="/brand/logo-icon.svg" width={16} height={16} alt="Statvora" />
+          </div>
           <span className="font-bold text-gray-900 tracking-tight">Statvora</span>
           {userType === "business" && (
             <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wide">Biz</span>

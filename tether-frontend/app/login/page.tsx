@@ -84,7 +84,9 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/brand/logo-icon.svg" width={48} height={48} alt="Statvora" className="rounded-2xl mb-4 mx-auto" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
+            <img src="/brand/logo-icon.svg" width={24} height={24} alt="Statvora" />
+          </div>
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 text-sm mt-1">
             {isCreator ? "Sign in to your creator account" : "Sign in to your business account"}

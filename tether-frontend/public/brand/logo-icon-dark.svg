@@ -1,12 +1,12 @@
-<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
-  <circle cx="50" cy="50" r="50" fill="#6B20E8"/>
-  <!-- Left-side depth shadow -->
-  <path d="M50 0 A50 50 0 0 0 50 100 C18 93 8 73 8 50 C8 27 18 7 50 0Z" fill="#4A0EBF" opacity="0.42"/>
-  <!-- Wave 1 (leftmost) -->
-  <path d="M21 76 C21 42 24 22 30 22 C36 22 39 42 39 76Z" fill="white" opacity="0.80"/>
-  <!-- Wave 2 (middle, tallest) -->
-  <path d="M37 76 C37 36 41 14 47 14 C53 14 57 36 57 76Z" fill="white"/>
-  <!-- Wave 3 (rightmost) -->
-  <path d="M53 76 C53 42 57 22 63 22 C69 22 72 42 72 76Z" fill="white" opacity="0.90"/>
+<!--
+  STATVORA LOGO ICON — DARK VARIANT
+  ==================================
+  Replace this file with your final logo icon for dark backgrounds (e.g. admin sidebar).
+  Used in: AdminSidebar (dark bg), any dark-theme header
+
+  Current placeholder: same icon, white strokes (works on dark backgrounds)
+-->
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+    stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

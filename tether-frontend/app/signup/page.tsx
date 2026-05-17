@@ -109,7 +109,9 @@ export default function SignupPage() {
       <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
-            <img src="/brand/logo-icon.svg" width={48} height={48} alt="Statvora" className="rounded-2xl mb-4 mx-auto" />
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
+              <img src="/brand/logo-icon.svg" width={24} height={24} alt="Statvora" />
+            </div>
             <h1 className="text-2xl font-bold text-gray-900">Join Statvora</h1>
             <p className="text-gray-500 text-sm mt-1">Who are you signing up as?</p>
           </div>
@@ -152,7 +154,11 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/brand/logo-icon.svg" width={48} height={48} alt="Statvora" className="rounded-2xl mb-4 mx-auto" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-600 mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
           <h1 className="text-2xl font-bold text-gray-900">Join Statvora</h1>
           <p className="text-gray-500 text-sm mt-1">
             {isCreator ? "Your verified creator profile starts here" : "Find and connect with verified creators"}

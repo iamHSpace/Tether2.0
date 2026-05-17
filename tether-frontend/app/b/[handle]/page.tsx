@@ -99,7 +99,9 @@ export default async function BusinessPublicProfile(
       <nav className="bg-white/70 backdrop-blur-sm border-b border-white/80 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
-            <img src="/brand/logo-icon.svg" width={28} height={28} alt="Statvora" className="rounded-lg" />
+            <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
+              <img src="/brand/logo-icon.svg" width={12} height={12} alt="Statvora" />
+            </div>
             <span className="text-sm font-bold text-gray-800">Statvora</span>
           </a>
           <a href="/signup"
